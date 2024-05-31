@@ -1,0 +1,57 @@
+buildscript {
+    repositories {
+        fileTree(dir: './resources/plugins', includes: ['*.jar'])
+    }
+
+    dependencies {
+        classpath files('./resources/plugins/dependency-management-plugin-1.1.5.jar')
+        classpath files('./resources/plugins/spring-boot-gradle-plugin-3.3.0.jar')
+        classpath files('./resources/plugins/vaadin-gradle-plugin-24.3.12.jar')
+    }
+}
+
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.0'
+    id 'io.spring.dependency-management' version '1.1.5'
+    id 'com.vaadin' version '24.3.12'
+}
+
+group = 'local.aep'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    sourceCompatibility = '17'
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    set('vaadinVersion', "24.3.12")
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'com.vaadin:vaadin-spring-boot-starter'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+// https://mvnrepository.com/artifact/com.vaadin/vaadin-bom
+    implementation group: 'com.vaadin', name: 'vaadin-bom', version: '24.3.12', ext: 'pom'
+
+    implementation fileTree(dir: './resources/libs', includes: ['*.jar'])
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "com.vaadin:vaadin-bom:${vaadinVersion}"
+    }
+}
+
+tasks.register("copyDependencies", Copy){
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+	from configurations.compileClasspath
+	into './resources/libs'
+}
