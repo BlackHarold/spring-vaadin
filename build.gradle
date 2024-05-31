@@ -12,7 +12,7 @@ buildscript {
 
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.3.0'
+//    id 'org.springframework.boot' version '3.3.0'
     id 'io.spring.dependency-management' version '1.1.5'
     id 'com.vaadin' version '24.3.12'
 }
@@ -25,7 +25,7 @@ java {
 }
 
 repositories {
-    mavenCentral()
+//    mavenCentral()
 }
 
 ext {
@@ -33,25 +33,25 @@ ext {
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'com.vaadin:vaadin-spring-boot-starter'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+//    implementation 'org.springframework.boot:spring-boot-starter-web'
+//    implementation 'com.vaadin:vaadin-spring-boot-starter'
+//    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+//    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 // https://mvnrepository.com/artifact/com.vaadin/vaadin-bom
-    implementation group: 'com.vaadin', name: 'vaadin-bom', version: '24.3.12', ext: 'pom'
+//    implementation group: 'com.vaadin', name: 'vaadin-bom', version: '24.3.12', ext: 'pom'
 
     implementation fileTree(dir: './resources/libs', includes: ['*.jar'])
 }
 
 dependencyManagement {
     imports {
-        mavenBom "com.vaadin:vaadin-bom:${vaadinVersion}"
+//        mavenBom "com.vaadin:vaadin-bom:${vaadinVersion}"
     }
 }
 
-tasks.register("copyDependencies", Copy){
-	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+tasks.register("copyDependencies", Copy) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
-	from configurations.compileClasspath
-	into './resources/libs'
+    from configurations.compileClasspath
+    into './resources/libs'
 }
