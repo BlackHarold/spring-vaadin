@@ -33,20 +33,12 @@ ext {
 }
 
 dependencies {
-//    implementation 'org.springframework.boot:spring-boot-starter-web'
-//    implementation 'com.vaadin:vaadin-spring-boot-starter'
-//    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-//    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-// https://mvnrepository.com/artifact/com.vaadin/vaadin-bom
-//    implementation group: 'com.vaadin', name: 'vaadin-bom', version: '24.3.12', ext: 'pom'
-
     implementation fileTree(dir: './resources/libs', includes: ['*.jar'])
+    implementation fileTree(dir: './resources/libs/crypto', includes: ['*.jar'])
 }
 
-dependencyManagement {
-    imports {
-//        mavenBom "com.vaadin:vaadin-bom:${vaadinVersion}"
-    }
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
 }
 
 tasks.register("copyDependencies", Copy) {

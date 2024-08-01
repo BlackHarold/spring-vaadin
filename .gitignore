@@ -36,3 +36,8 @@ out/
 
 ### VS Code ###
 .vscode/
+
+resources/data/PDF/SIGNED/
+
+temp/
+resources/
