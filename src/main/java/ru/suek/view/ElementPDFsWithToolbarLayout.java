@@ -1,8 +1,8 @@
 package ru.suek.view;
 
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
@@ -10,6 +10,7 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
@@ -91,7 +92,6 @@ public class ElementPDFsWithToolbarLayout extends VerticalLayout {
         add(toolbar, grid);
     }
 
-
     private Button createSignButton() {
         Button signButton = new Button("Подписать", VaadinIcon.PENCIL.create());
         signButton.addClickListener(e -> showDialog());
@@ -137,6 +137,69 @@ public class ElementPDFsWithToolbarLayout extends VerticalLayout {
         return toolbar;
     }
 
+    private ComboBox<String> getAliasesBox(KeyStore keyStore) {
+        Map<String, String> options = new HashMap<>();
+
+        try {
+            System.out.println("key store type: " + keyStore.getType());
+            Enumeration<String> aliases = keyStore.aliases();
+
+            while (aliases.hasMoreElements()) {
+                String alias = aliases.nextElement();
+
+                Certificate[] certificateChain = keyStore.getCertificateChain(alias);
+                X509Certificate x509Certificate = (X509Certificate) certificateChain[0];
+                String ownerName = x509Certificate.getSubjectX500Principal().getName();
+                String[] cnParts = ownerName.split(",");
+                String cn = null;
+                for (String part : cnParts) {
+                    if (part.startsWith("CN=")) {
+                        cn = part.substring(3);
+                    }
+                }
+
+                if (cn == null) {
+                    cn = alias;
+                }
+
+                options.put(alias, cn);
+            }
+        } catch (KeyStoreException e) {
+            throw new RuntimeException(e);
+        }
+
+        if (options.isEmpty()) {
+            Notification.show("Не обнаружены хранилища корневых сертификатов");
+            return new ComboBox<>();
+        } else {
+            ComboBox<String> aliasesBox = new ComboBox<>("Выберете сертификат для подписи");
+            aliasesBox.setItems(options.keySet());
+            aliasesBox.setItemLabelGenerator(options::get);
+
+            return aliasesBox;
+        }
+    }
+
+    private KeyStore getKeyStore() {
+        KeyStore keyStore;
+        try {
+            keyStore = KeyStore.getInstance(JCSP.HD_STORE_NAME, JCSP.PROVIDER_NAME);
+            keyStore.load(null, null);
+        } catch (KeyStoreException e) {
+            throw new RuntimeException(e);
+        } catch (NoSuchProviderException e) {
+            throw new RuntimeException(e);
+        } catch (CertificateException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+
+        return keyStore;
+    }
+
     private void showDialog() {
         MultiSelect<Grid<FileDTO>, FileDTO> selection = grid.asMultiSelect();
         Notification.show(selection.getValue().parallelStream().map(FileDTO::getName).collect(Collectors.joining(",")));
@@ -163,87 +226,87 @@ public class ElementPDFsWithToolbarLayout extends VerticalLayout {
 
         //approve
         VerticalLayout approveLayout = new VerticalLayout();
+
+        KeyStore keyStore = getKeyStore();
+        ComboBox<String> comboBox = getAliasesBox(keyStore);
+        comboBox.setWidthFull();
+        if (comboBox.getListDataView().getItemCount() == 0) {
+            Notification warnNotify = Notification.show("Список хранилищ не может быть пустым");
+            warnNotify.addThemeVariants(NotificationVariant.LUMO_ERROR);
+        }
+
         Div infoText = new Div();
         infoText.getElement().setProperty("innerHTML", "<strong>Подтвердите подписание выбранных файлов<strong>");
         Button approveButton = new Button("Подписать файлы", VaadinIcon.FILE_PROCESS.create());
         approveButton.getElement().getStyle().set("color", "#5c995e");
         approveButton.addClickListener(event -> {
-            selection.getValue().stream().forEach(fileDTO -> {
-                String rootPath = Paths.get(fileDTO.getPath()).toUri().getPath();
-                String outputPath = rootPath
-                        .replaceAll("/PDF/", "/PDF/SIGNED/")
-                        .replaceAll(".pdf", "_signed.pdf");
+            if (comboBox.isEmpty()) {
+                Notification.show("Пожалуйста, выберете сертификат!", 1000, Notification.Position.MIDDLE);
+                comboBox.focus();
+            } else {
 
-                PrivateKey privateKey = null;
-                Certificate[] certificateChain = null;
-                try {
-                    KeyStore keyStore = KeyStore.getInstance(JCSP.HD_STORE_NAME,
-                            JCSP.PROVIDER_NAME);
+                String selectedComboBoxValue = comboBox.getValue();
+                System.out.println("selectedComboBoxValue: " + selectedComboBoxValue);
 
-                    keyStore.load(null, null);
-                    System.out.println("key store type: " + keyStore.getType());
-                    Enumeration<String> aliases;
-                    aliases = keyStore.aliases();
-                    while (aliases.hasMoreElements()) {
-                        String alias = aliases.nextElement();
-                        System.out.println("Alias: " + alias);
+                selection.getValue().stream().forEach(fileDTO -> {
+                    String rootPath = Paths.get(fileDTO.getPath()).toUri().getPath();
+                    String outputPath = rootPath
+                            .replaceAll("/PDF/", "/PDF/SIGNED/")
+                            .replaceAll(".pdf", "_signed.pdf");
+
+                    try {
+                        // Получение ключей и сертификата
+                        PrivateKey privateKey = (PrivateKey) keyStore.getKey(ALIAS_2012_256, "".toCharArray());
+                        //PublicKey publicKey = keyStore.getCertificate(selectedComboBoxValue).getPublicKey();
+                        Certificate[] certificateChain = keyStore.getCertificateChain(selectedComboBoxValue);
+                        printInfo(privateKey, (X509Certificate) keyStore.getCertificate(selectedComboBoxValue));
+
+                        for (int i = 0; i < certificateChain.length; i++) {
+                            X509Certificate cert = (X509Certificate) certificateChain[i];
+                            String algName = cert.getSigAlgName();
+                            System.out.println("certificate " + i + ": " + cert + " algName: " + algName);
+                        }
+
+                        //TODO Получить эти параматры из формы или распарсить подпись?
+                        String location = "Российская федерация";
+                        String reason = "Тестовая подпись (ГОСТ 2012-256)";
+                        String contact = "+7 999 222 22 22";
+
+                        SignVerifyPDFExample.sign(
+                                privateKey,
+                                JCP.GOST_DIGEST_2012_256_NAME,
+                                JCSP.PROVIDER_NAME,
+                                certificateChain,
+                                fileDTO.getPath(),
+                                outputPath,
+                                location,
+                                reason,
+                                contact,
+                                true
+                        );
+
+                        SignVerifyPDFExample.verify(outputPath, null, null, JCSP.PROVIDER_NAME);
+                    } catch (KeyStoreException | NoSuchAlgorithmException ke) {
+                        System.out.println("Key store exception: " + ExceptionUtils.getMessage(ke));
+                    } catch (NoSuchProviderException e) {
+                        System.out.println("No such provider exception: " + ExceptionUtils.getMessage(e));
+                        throw new RuntimeException(e);
+                    } catch (UnrecoverableKeyException e) {
+                        System.out.println("Unrecoverable key: " + ExceptionUtils.getMessage(e));
+                        throw new RuntimeException(e);
+                    } catch (Exception e) {
+                        System.out.println("other exceptions: " + ExceptionUtils.getMessage(e));
+                        throw new RuntimeException(e);
                     }
+                });
 
-                    privateKey = (PrivateKey) keyStore.getKey(ALIAS_2012_256, "".toCharArray());
-                    printInfo(privateKey, (X509Certificate) keyStore.getCertificate(ALIAS_2012_256));
-
-                    // Получение PrivateKey
-                    PublicKey publicKey = keyStore.getCertificate(ALIAS_2012_256).getPublicKey();
-
-                    System.out.println("publicKey: " + publicKey);
-                    System.out.println("privateKey: " + privateKey);
-
-                    certificateChain = keyStore.getCertificateChain(ALIAS_2012_256);
-                    for (int i = 0; i < certificateChain.length; i++) {
-                        X509Certificate cert = (X509Certificate) certificateChain[i];
-                        System.out.println("certificate: " + cert);
-                        String algName = cert.getSigAlgName();
-                        System.out.println("algName: " + algName);
-                    }
-
-                } catch (IOException | KeyStoreException | NoSuchAlgorithmException | CertificateException ke) {
-                    System.out.println("Key store exception: " + ExceptionUtils.getMessage(ke));
-                } catch (NoSuchProviderException e) {
-                    System.out.println("No such provider exception: " + ExceptionUtils.getMessage(e));
-                    throw new RuntimeException(e);
-                } catch (UnrecoverableKeyException e) {
-                    System.out.println("Unrecoverable key: " + ExceptionUtils.getMessage(e));
-                    throw new RuntimeException(e);
-                }
-
-                String location = "Российская федерация";
-                String reason = "Тестовая подпись (ГОСТ 2012-256)";
-
-                try {
-                    SignVerifyPDFExample.sign(
-                            privateKey,
-                            JCP.GOST_DIGEST_2012_256_NAME,
-                            JCSP.PROVIDER_NAME,
-                            certificateChain,
-                            fileDTO.getPath(),
-                            outputPath,
-                            location,
-                            reason,
-                            true
-                    );
-                    SignVerifyPDFExample.verify(outputPath, null, null, JCSP.PROVIDER_NAME);
-
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            });
-
-            Notification.show("Подпись подтверждена");
-            dialog.close();
+                dialog.close();
+            }
         });
+
         approveLayout.setPadding(false);
         approveLayout.getElement().getStyle().set("margin-top", "20px");
-        approveLayout.add(infoText, approveButton);
+        approveLayout.add(comboBox, infoText, approveButton);
 
         //group layouts
         dialog.add(cancelLayout, approveLayout);
@@ -254,11 +317,10 @@ public class ElementPDFsWithToolbarLayout extends VerticalLayout {
                                   X509Certificate certificate) {
 
         System.out.println("Private key: " + privateKey);
-        System.out.println("Certificate:\n\tSn - " +
+        System.out.println("Certificate:\n   Sn - " +
                 certificate.getSerialNumber().toString(16) +
-                "\n\tSubject - " + certificate.getSubjectDN() +
-                "\n\tIssuer - " + certificate.getIssuerDN());
-
+                "\n   Subject - " + certificate.getSubjectDN() +
+                "\n   Issuer - " + certificate.getIssuerDN());
     }
 
     private void checkProviders() {

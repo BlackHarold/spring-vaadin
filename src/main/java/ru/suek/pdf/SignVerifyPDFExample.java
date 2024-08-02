@@ -2,6 +2,7 @@ package ru.suek.pdf;
 
 import com.itextpdf.text.pdf.*;
 import com.itextpdf.text.pdf.security.*;
+import com.vaadin.flow.component.notification.Notification;
 import org.bouncycastle.tsp.TimeStampToken;
 import ru.CryptoPro.Crypto.CryptoProvider;
 import ru.CryptoPro.JCP.JCP;
@@ -77,23 +78,6 @@ public class SignVerifyPDFExample {
         byte[] rootContent = Array.readFile(ROOT_CERT);
         X509Certificate root = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(rootContent));
 
-        // ГОСТ Р 34.10-2001
-//         sign(
-//             genKeyPair(JCP.GOST_EL_DH_NAME, CryptoProvider.PROVIDER_NAME),
-//             JCP.GOST_DIGEST_NAME,
-//             JCP.GOST_EL_SIGN_NAME,
-//             JCP.PROVIDER_NAME,
-//             "CN=exc_2001, C=RU",
-//             root,
-//             IN_PDF_FILE,
-//             OUT_PDF_FILE + "signed.2001.pdf",
-//             "Crypto-Pro LLC", "Test signature (2001)",
-//             false,
-//             Certificates.HTTP_ADDRESS
-//         );
-
-//         verify(OUT_PDF_FILE + "signed.2001.pdf", null, null, JCSP.PROVIDER_NAME);
-
         // ГОСТ Р 34.10-2012 (256)
         sign(
                 genKeyPair(JCP.GOST_DH_2012_256_NAME, CryptoProvider.PROVIDER_NAME),
@@ -104,7 +88,7 @@ public class SignVerifyPDFExample {
                 root,
                 IN_PDF_FILE,
                 OUT_PDF_FILE + "signed.2012_256.pdf",
-                "Crypto-Pro LLC", "Test signature (2012-256)",
+                "Crypto-Pro LLC", "Test signature (2012-256)", "+7 TEL",
                 false,
                 Certificates.HTTP_ADDRESS
         );
@@ -121,7 +105,7 @@ public class SignVerifyPDFExample {
                 root,
                 IN_PDF_FILE,
                 OUT_PDF_FILE + "signed.2012_512.pdf",
-                "Crypto-Pro LLC", "Test signature (2012-512)",
+                "Crypto-Pro LLC", "Test signature (2012-512)", "+7 TEL",
                 false,
                 Certificates.HTTP_ADDRESS
         );
@@ -162,12 +146,12 @@ public class SignVerifyPDFExample {
     public static void sign(KeyPair keyPair, String hashAlgorithm,
                             String signAlgName, String signProvider, String dnName,
                             X509Certificate root, String fileToSign, String signedFile,
-                            String location, String reason, boolean isCAdES, String
+                            String location, String reason, String contact, boolean isCAdES, String
                                     httpAddress) throws Exception {
 
         sign(keyPair, hashAlgorithm, signAlgName, signProvider,
                 dnName, root, fileToSign, signedFile, location,
-                reason, false, isCAdES, httpAddress);
+                reason, contact, false, isCAdES, httpAddress);
 
     }
 
@@ -191,7 +175,7 @@ public class SignVerifyPDFExample {
     public static void sign(KeyPair keyPair, String hashAlgorithm,
                             String signAlgName, String signProvider, String dnName,
                             X509Certificate root, String fileToSign, String signedFile,
-                            String location, String reason, boolean append, boolean isCAdES,
+                            String location, String reason, String contact, boolean append, boolean isCAdES,
                             String httpAddress) throws Exception {
 
         CertificateFactory factory = CertificateFactory.getInstance("X.509");
@@ -207,7 +191,7 @@ public class SignVerifyPDFExample {
         chain[1] = root;
 
         sign(keyPair.getPrivate(), hashAlgorithm, signProvider,
-                chain, fileToSign, signedFile, location, reason, append);
+                chain, fileToSign, signedFile, location, reason, contact, append);
 
     }
 
@@ -227,81 +211,81 @@ public class SignVerifyPDFExample {
      */
     public static void sign(PrivateKey privateKey, String hashAlgorithm,
                             String signProvider, Certificate[] chain, String fileToSign,
-                            String signedFile, String location, String reason, boolean append)
-            throws Exception {
+                            String signedFile, String location, String reason, String contact, boolean append) throws Exception {
         System.out.println("hashAlgorithm: " + hashAlgorithm + ", signProvider: " + signProvider + ", location: " + location + ", reason: " + reason + ", append: " + append);
 
         PdfReader reader = new PdfReader(fileToSign);
-        FileOutputStream fout = new FileOutputStream(signedFile);
+        try (FileOutputStream fout = new FileOutputStream(signedFile)) {
 
-        PdfStamper stp = append
-                ? PdfStamper.createSignature(reader, fout, '\0', null, true)
-                : PdfStamper.createSignature(reader, fout, '\0');
+            PdfStamper stp = append
+                    ? PdfStamper.createSignature(reader, fout, '\0', null, true)
+                    : PdfStamper.createSignature(reader, fout, '\0');
 
-        PdfSignatureAppearance sap = stp.getSignatureAppearance();
+            PdfSignatureAppearance appearance = stp.getSignatureAppearance();
 
-        sap.setCertificate(chain[0]);
-        sap.setReason(reason);
-        sap.setLocation(location);
+            appearance.setCertificate(chain[0]);
+            appearance.setReason(reason);
+            appearance.setLocation(location);
+            appearance.setContact(contact);
 
-        PdfSignature dic = new PdfSignature(PdfName.ADOBE_CryptoProPDF,
-                PdfName.ADBE_PKCS7_DETACHED);
-        System.out.println("cert type: " + chain[0].getType() + ", got DIC, signed file to: " + signedFile);
+            PdfSignature dic = new PdfSignature(PdfName.ADOBE_CryptoProPDF,
+                    PdfName.ADBE_PKCS7_DETACHED);
+            System.out.println("cert type: " + chain[0].getType() + ", got DIC, signed file to: " + signedFile);
 
-        dic.setReason(sap.getReason());
-        dic.setLocation(sap.getLocation());
-        dic.setSignatureCreator(sap.getSignatureCreator());
-        dic.setContact(sap.getContact());
-        dic.setDate(new PdfDate(sap.getSignDate())); // time-stamp will over-rule this
+            dic.setReason(appearance.getReason());
+            dic.setLocation(appearance.getLocation());
+            dic.setSignatureCreator(appearance.getSignatureCreator());
+            dic.setContact(appearance.getContact());
+            dic.setDate(new PdfDate(appearance.getSignDate())); // time-stamp will over-rule this
 
-        sap.setCryptoDictionary(dic);
-        int estimatedSize = 8192;
+            appearance.setCryptoDictionary(dic);
+            int estimatedSize = 8192;
 
-        HashMap<PdfName, Integer> exc = new HashMap<>();
-        exc.put(PdfName.CONTENTS, Integer.valueOf(estimatedSize * 2 + 2));
+            HashMap<PdfName, Integer> exc = new HashMap<>();
+            exc.put(PdfName.CONTENTS, Integer.valueOf(estimatedSize * 2 + 2));
 
-        sap.preClose(exc);
+            appearance.preClose(exc);
 
-        InputStream data = sap.getRangeStream();
+            InputStream data = appearance.getRangeStream();
 
-        MessageDigest md = MessageDigest.getInstance(hashAlgorithm);
-        System.out.println("incoming algo: " + md.getAlgorithm());
-        byte hash[] = DigestAlgorithms.digest(data, md);
+            MessageDigest md = MessageDigest.getInstance(hashAlgorithm);
+            byte[] hash = DigestAlgorithms.digest(data, md);
 
-        Calendar cal = Calendar.getInstance();
+            Calendar cal = Calendar.getInstance();
 
-        PdfPKCS7 sgn = null;
-        try {
-            sgn = new PdfPKCS7(privateKey, chain, hashAlgorithm, signProvider, null, true);
-        } catch (InvalidKeyException | NoSuchProviderException | NoSuchAlgorithmException iek) {
-            System.out.println("any error: " + iek.getMessage());
-            new RuntimeException(iek);
+            PdfPKCS7 pkcs7 = null;
+            try {
+                pkcs7 = new PdfPKCS7(privateKey, chain, hashAlgorithm, signProvider, null, true);
+            } catch (InvalidKeyException | NoSuchProviderException | NoSuchAlgorithmException iek) {
+                System.out.println("any error: " + iek.getMessage());
+                new RuntimeException(iek);
+            }
+
+            byte[] sh = pkcs7.getAuthenticatedAttributeBytes(hash, cal, null, null, MakeSignature.CryptoStandard.CMS);
+
+            pkcs7.update(sh, 0, sh.length);
+
+            System.out.println("incoming algo: " + md.getAlgorithm() + "time: " + cal.getTime());
+            byte[] encodedSig = pkcs7.getEncodedPKCS7(hash, cal, (TSAClient) null, (byte[]) null, (Collection) null, MakeSignature.CryptoStandard.CMS);
+
+            if (estimatedSize < encodedSig.length) {
+                throw new IOException("Not enough space");
+            }
+
+            byte[] paddedSig = new byte[estimatedSize];
+            System.arraycopy(encodedSig, 0, paddedSig, 0, encodedSig.length);
+
+            PdfDictionary dic2 = new PdfDictionary();
+            dic2.put(PdfName.CONTENTS, new PdfString(paddedSig).setHexWriting(true));
+
+            appearance.close(dic2);
+            stp.close();
+
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        } finally {
+            reader.close();
         }
-
-        byte[] sh = sgn.getAuthenticatedAttributeBytes(hash, cal,
-
-                null, null, MakeSignature.CryptoStandard.CMS);
-
-        sgn.update(sh, 0, sh.length);
-
-        System.out.println("hash " + hash + " cal " + cal.getTime());
-        byte[] encodedSig = sgn.getEncodedPKCS7(hash, cal, (TSAClient) null, (byte[]) null, (Collection) null, MakeSignature.CryptoStandard.CMS);
-
-        if (estimatedSize < encodedSig.length) {
-            throw new IOException("Not enough space");
-        }
-
-        byte[] paddedSig = new byte[estimatedSize];
-        System.arraycopy(encodedSig, 0, paddedSig, 0, encodedSig.length);
-
-        PdfDictionary dic2 = new PdfDictionary();
-        dic2.put(PdfName.CONTENTS, new PdfString(paddedSig).setHexWriting(true));
-
-        sap.close(dic2);
-        stp.close();
-
-        fout.close();
-        reader.close();
     }
 
     /**
@@ -330,60 +314,50 @@ public class SignVerifyPDFExample {
         ArrayList<String> signatureNames = af.getSignatureNames();
         if (signatureNames.size() == 0) {
             throw new Exception("Signatures not found.");
-        } // if
+        }
 
         for (String signatureName : signatureNames) {
-
-            System.out.println("Signature: " + signatureName);
             PdfPKCS7 pk = af.verifySignature(signatureName, provider);
 
-//            boolean verified = pk.verify();
-//            if (!verified) {
+            boolean verified = pk.verify();
+            if (!verified) {
+                Notification.show("Подпись установлена, но не проходит проверку методом verifySignature класса PdfPKCS7");
 //                throw new Exception("Invalid signature: " + signatureName);
-//            }
-
-            System.out.println("Signer certificate: " +
-                    pk.getSigningCertificate().getSubjectDN());
+            } else {
+                Notification.show("Подпись подтверждена");
+            }
 
             Calendar calendar = pk.getSignDate();
-            System.out.println("Signature date: " + calendar);
-
             X509Certificate pkc[] = (X509Certificate[]) pk.getSignCertificateChain();
             TimeStampToken ts = pk.getTimeStampToken();
 
             if (ts != null) {
                 boolean imprint = pk.verifyTimestampImprint();
-                System.out.println("Timestamp imprint verified: " + imprint);
                 calendar = pk.getTimeStampDate();
-                System.out.println("Timestamp date: " + calendar);
-            } // if
+                System.out.println("Timestamp imprint verified: " + imprint + ", Timestamp date: " + calendar);
+            }
 
-            System.out.println("Certificate subject: " +
+            System.out.println("Signature: " + signatureName + ", Certificated subject: " +
                     pk.getSigningCertificate().getSubjectDN());
 
             System.out.println("Document wasn't modified.");
             if (trustStore != null) {
-
                 List<VerificationException> fails = CertificateVerification
                         .verifyCertificates(pkc, trustStore, crlList, calendar);
 
                 if (fails.isEmpty()) {
                     System.out.println("Certificates verified against the key store");
-                } // if
-                else {
-
+                } else {
                     System.err.println("Certificate validation failed: ");
                     for (VerificationException fail : fails) {
                         fail.printStackTrace();
-                    } // for
+                    }
 
                     throw new Exception("Validation failed.");
+                }
+            }
 
-                } // else
-
-            } // if
-
-        } // for
+        }
 
         return signatureNames.size();
 
