@@ -223,7 +223,7 @@ public class ElementPDFsWithToolbarLayout extends VerticalLayout {
                     SignVerifyPDFExample.sign(
                             privateKey,
                             JCP.GOST_DIGEST_2012_256_NAME,
-                            JCP.PROVIDER_NAME,
+                            JCSP.PROVIDER_NAME,
                             certificateChain,
                             fileDTO.getPath(),
                             outputPath,
