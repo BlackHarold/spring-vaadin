@@ -217,11 +217,11 @@ public class SignVerifyPDFExample {
         PdfReader reader = new PdfReader(fileToSign);
         try (FileOutputStream fout = new FileOutputStream(signedFile)) {
 
-            PdfStamper stp = append
+            PdfStamper pdfStamper = append
                     ? PdfStamper.createSignature(reader, fout, '\0', null, true)
                     : PdfStamper.createSignature(reader, fout, '\0');
 
-            PdfSignatureAppearance appearance = stp.getSignatureAppearance();
+            PdfSignatureAppearance appearance = pdfStamper.getSignatureAppearance();
 
             appearance.setCertificate(chain[0]);
             appearance.setReason(reason);
@@ -279,7 +279,7 @@ public class SignVerifyPDFExample {
             dic2.put(PdfName.CONTENTS, new PdfString(paddedSig).setHexWriting(true));
 
             appearance.close(dic2);
-            stp.close();
+            pdfStamper.close();
 
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);

@@ -256,7 +256,7 @@ public class MainView extends VerticalLayout {
 
                     try {
                         // Получение ключей и сертификата
-                        PrivateKey privateKey = (PrivateKey) keyStore.getKey(ALIAS_2012_256, "".toCharArray());
+                        PrivateKey privateKey = (PrivateKey) keyStore.getKey(selectedComboBoxValue, "".toCharArray());
                         //PublicKey publicKey = keyStore.getCertificate(selectedComboBoxValue).getPublicKey();
                         Certificate[] certificateChain = keyStore.getCertificateChain(selectedComboBoxValue);
                         printInfo(privateKey, (X509Certificate) keyStore.getCertificate(selectedComboBoxValue));
