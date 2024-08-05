@@ -3,10 +3,12 @@ package ru.suek.view;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.dependency.JavaScript;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.IFrame;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
@@ -37,6 +39,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Route("")
+@JavaScript("./js-1.0/cadesplugin_api.js")
+//@JavaScript("./js-1.0/nmcades_plugin_api.js")
+@JavaScript("./js-1.0/crypto_plugin.js")
 public class MainView extends VerticalLayout {
     /**
      * уникальное имя записываемого сертификата
@@ -58,6 +63,7 @@ public class MainView extends VerticalLayout {
     }
 
     public MainView(List<File> files) {
+        this.getElement().executeJs("loadCertificates()");
 
         files = getListElements("resources/data/PDF");
         System.out.println("resource pdf size: " + files.size());
@@ -89,7 +95,11 @@ public class MainView extends VerticalLayout {
             signButton.setEnabled(event.getAllSelectedItems().size() > 0);
         });
 
-        add(toolbar, grid);
+        IFrame frame = new IFrame("footer.html");
+        frame.setWidth("100%");
+        frame.setHeight("10%");
+
+        add(toolbar, grid, frame);
     }
 
     private Button createSignButton() {
@@ -201,6 +211,9 @@ public class MainView extends VerticalLayout {
     }
 
     private void showDialog() {
+        this.getElement().executeJs("check_browser()");
+        this.getElement().executeJs("check_plugin_working()");
+
         MultiSelect<Grid<FileDTO>, FileDTO> selection = grid.asMultiSelect();
         Notification.show(selection.getValue().parallelStream().map(FileDTO::getName).collect(Collectors.joining(",")));
 
