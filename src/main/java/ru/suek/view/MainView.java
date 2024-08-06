@@ -95,11 +95,11 @@ public class MainView extends VerticalLayout {
             signButton.setEnabled(event.getAllSelectedItems().size() > 0);
         });
 
-        IFrame frame = new IFrame("footer.html");
-        frame.setWidth("100%");
-        frame.setHeight("10%");
+        IFrame iFrame = new IFrame("html/footer.html");
+        iFrame.setWidth("100%");
+        iFrame.setHeight("50%");
 
-        add(toolbar, grid, frame);
+        add(toolbar, grid, iFrame);
     }
 
     private Button createSignButton() {
@@ -211,8 +211,11 @@ public class MainView extends VerticalLayout {
     }
 
     private void showDialog() {
-        this.getElement().executeJs("check_browser()");
-        this.getElement().executeJs("check_plugin_working()");
+//        this.getElement().executeJs("check_browser()");
+//        this.getElement().executeJs("check_plugin_working()");
+//        this.getElement().executeJs("iterateContainers()");
+        this.getElement().executeJs("createAndVerifySignature()");
+
 
         MultiSelect<Grid<FileDTO>, FileDTO> selection = grid.asMultiSelect();
         Notification.show(selection.getValue().parallelStream().map(FileDTO::getName).collect(Collectors.joining(",")));
