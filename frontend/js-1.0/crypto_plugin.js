@@ -1,3 +1,5 @@
+
+
 window.callCryptoProPlugin = function callCryptoProPlugin() {
     if (window.cryptoProPlugin) {
         // Пример вызова метода плагина

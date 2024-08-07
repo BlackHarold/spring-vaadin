@@ -1,7 +1,6 @@
 package ru.suek.view;
 
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dependency.JavaScript;
@@ -41,8 +40,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Route("")
-@JavaScript("./js-1.0/cadesplugin_api.js")
-@JavaScript("./js-1.0/crypto_plugin.js")
 public class MainView extends VerticalLayout {
     /**
      * уникальное имя записываемого сертификата
@@ -64,11 +61,6 @@ public class MainView extends VerticalLayout {
     }
 
     public MainView(List<File> files) {
-        getElement().executeJs("loadCertificates()").then(result->{
-            System.out.println("result: " + result.getClass().getSimpleName());
-        });
-
-        JreJsonNull jreJsonNull;
         files = getListElements("resources/data/PDF");
         System.out.println("resource pdf size: " + files.size());
 
@@ -99,11 +91,15 @@ public class MainView extends VerticalLayout {
             signButton.setEnabled(event.getAllSelectedItems().size() > 0);
         });
 
-        IFrame iFrame = new IFrame("html/footer.html");
-        iFrame.setWidth("100%");
-        iFrame.setHeight("50%");
+        IFrame iFrame1 = new IFrame("html/cert.html");
+        iFrame1.setWidth("100%");
+        iFrame1.setHeight("17%");
 
-        add(toolbar, grid, iFrame);
+        IFrame iFrame2 = new IFrame("html/footer.html");
+        iFrame2.setWidth("100%");
+        iFrame2.setHeight("33%");
+
+        add(toolbar, grid, iFrame1, iFrame2);
     }
 
     private Button createSignButton() {
