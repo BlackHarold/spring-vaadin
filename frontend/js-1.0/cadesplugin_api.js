@@ -21,8 +21,10 @@
             plugin_resolve = resolve;
             plugin_reject = reject;
         });
+        console.log("canPromise", cadesplugin);
     } else {
         cadesplugin = {};
+        console.log("!canPromise", cadesplugin);
     }
 
     function check_browser() {
@@ -502,6 +504,7 @@
                 return new ActiveXObject(name);
             }
         }
+
         // создаются объекты NPAPI
         return pluginObject.CreateObject(name);
     }
@@ -587,7 +590,7 @@
         var ex;
         ru_cryptopro_npcades_10_native_bridge.call(functionName, array, function (e, response) {
             ex = e;
-            var tmpobj = "";
+            var tmpobj;
             try {
                 tmpobj = JSON.parse(response)
             } catch (e) {
@@ -598,8 +601,7 @@
                 tmpobj = tmpobj.replace(/\\\r/gm, "\r");
             }
         });
-        if (ex)
-            throw ex;
+        if (ex) throw ex;
         return tmpobj;
     }
 
@@ -785,6 +787,7 @@
         var div = document.createElement("div");
         div.innerHTML = "<!--[if lt IE 9]><i></i><![endif]-->";
         var isIeLessThan9 = (div.getElementsByTagName("i").length === 1);
+
         if (isIeLessThan9) {
             plugin_loaded_error("Internet Explorer версии 8 и ниже не поддерживается");
             return;
@@ -866,6 +869,7 @@
         document.addEventListener("visibilitychange", onVisibilityChange);
         return;
     }
+
     set_load_timeout();
     check_plugin_working();
 }());

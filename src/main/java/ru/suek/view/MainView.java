@@ -1,6 +1,7 @@
 package ru.suek.view;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dependency.JavaScript;
@@ -20,6 +21,7 @@ import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.data.selection.MultiSelect;
 import com.vaadin.flow.router.Route;
+import elemental.json.impl.JreJsonNull;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import ru.CryptoPro.JCP.JCP;
 import ru.CryptoPro.JCSP.JCSP;
@@ -40,7 +42,6 @@ import java.util.stream.Collectors;
 
 @Route("")
 @JavaScript("./js-1.0/cadesplugin_api.js")
-//@JavaScript("./js-1.0/nmcades_plugin_api.js")
 @JavaScript("./js-1.0/crypto_plugin.js")
 public class MainView extends VerticalLayout {
     /**
@@ -63,8 +64,11 @@ public class MainView extends VerticalLayout {
     }
 
     public MainView(List<File> files) {
-        this.getElement().executeJs("loadCertificates()");
+        getElement().executeJs("loadCertificates()").then(result->{
+            System.out.println("result: " + result.getClass().getSimpleName());
+        });
 
+        JreJsonNull jreJsonNull;
         files = getListElements("resources/data/PDF");
         System.out.println("resource pdf size: " + files.size());
 
@@ -214,7 +218,7 @@ public class MainView extends VerticalLayout {
 //        this.getElement().executeJs("check_browser()");
 //        this.getElement().executeJs("check_plugin_working()");
 //        this.getElement().executeJs("iterateContainers()");
-        this.getElement().executeJs("createAndVerifySignature()");
+//        this.getElement().executeJs("createAndVerifySignature()");
 
 
         MultiSelect<Grid<FileDTO>, FileDTO> selection = grid.asMultiSelect();

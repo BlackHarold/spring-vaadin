@@ -41,27 +41,31 @@ function step_1() {
             if (document.getElementById('CertListBox').selectedIndex !== -1)
                 step_2();
         });
+
     document.getElementById('SignBtn').addEventListener("click", step_3);
     for (var i = 0; i < elems_before_signing.length; i++) {
         hide_elem(elems_before_signing[i]);
+        console.log("elems_before_signing: ", elems_before_signing[i]);
     }
+
     for (i = 0; i < elems_after_signing.length; i++) {
+        console.log("elems_after_signing ", elems_after_signing[i]);
         hide_elem(elems_after_signing[i]);
     }
+
     highlight_elem("CertListBoxToHide");
 }
 
 function step_2() {
+    debugger;
     restore_elem("CertListBoxToHide");
     if (document.getElementById("openFileButton") === null) {
         if (document.getElementById("SignatureTxtBox") !== null && document.getElementById("SignatureTxtBox").value === "") {
             highlight_elem("SignData");
-        }
-        else {
+        } else {
             restore_elem("SignData");
         }
-    }
-    else {
+    } else {
         if (!isFileOpened)
             highlight_elem("DataToSignItemBorder");
         document.getElementById('openFileButton').addEventListener("change", function () {
@@ -90,6 +94,7 @@ function step_2() {
 }
 
 function step_3() {
+    debugger;
     restore_elem("SignData");
     for (var i = 0; i < elems_after_signing.length; i++) {
         show_elem(elems_after_signing[i]);

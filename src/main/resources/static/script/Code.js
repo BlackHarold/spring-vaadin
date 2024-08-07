@@ -785,6 +785,7 @@ function MakeXMLSign_NPAPI(dataToSign, certObject, signatureType) {
     var pubKey = certObject.PublicKey();
     var algo = pubKey.Algorithm;
     var algoOid = algo.Value;
+    console.log("algo Oid", algoOid);
     if (algoOid == "1.2.643.7.1.1.1.1") {   // алгоритм подписи ГОСТ Р 34.10-2012 с ключом 256 бит
         signMethod = "urn:ietf:params:xml:ns:cpxmlsec:algorithms:gostr34102012-gostr34112012-256";
         digestMethod = "urn:ietf:params:xml:ns:cpxmlsec:algorithms:gostr34112012-256";

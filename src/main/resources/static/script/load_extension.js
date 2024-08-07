@@ -58,6 +58,7 @@ if (isEdge()) {
       "message",
       function (event) {
         if (event.data == "cadesplugin_loaded") {
+          console.log("event cadesplugin_loaded")
           CheckForPlugIn_NPAPI();
         } else if (event.data == "cadesplugin_load_error") {
           if (window.cadesplugin_extension_loaded) {

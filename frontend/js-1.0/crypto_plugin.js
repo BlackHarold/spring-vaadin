@@ -28,24 +28,22 @@ window.iterateContainers = function iterateContainers() {
                 console.log("oCertificates");
                 console.log(oCertificates);
                 var count = yield oCertificates.Count;
-                console.log("count");
-                console.log(count);
+                console.log("count", count);
 
                 console.log("iterate certificates:")
                 for (var i = 1; i <= count; i++) {
                     var cert = yield oCertificates.Item(i);
-                    console.log("cert");
-                    console.log(cert);
+                    console.log("cert", cert);
                     try {
                         var pKey = yield cert.PrivateKey;
-                        console.log(pKey);
+                        console.log("pKey: ", pKey);
                     } catch (err) {
                         alert(err)
                         continue;
                     }
                     var containerName = yield pKey.ContainerName;
                     var uniqueContainerName = yield pKey.UniqueContainerName;
-                    console.log("name: " + containerName + ", unique name: " + uniqueContainerName);
+                    console.log("name: ", containerName, ", unique name: ", uniqueContainerName);
                 }
             } catch (err) {
                 alert(cadesplugin.getLastError(err));
@@ -58,31 +56,25 @@ function SignCreate(certSubjectName, dataToSign) {
     return new Promise(function (resolve, reject) {
         cadesplugin.async_spawn(function* (args) {
             var oStore = yield cadesplugin.CreateObjectAsync("CAdESCOM.Store");
-            console.log("oStore");
-            console.log(oStore);
+            console.log("oStore", oStore);
             yield oStore.Open(cadesplugin.CAPICOM_CURRENT_USER_STORE, cadesplugin.CAPICOM_MY_STORE,
                 cadesplugin.CAPICOM_STORE_OPEN_MAXIMUM_ALLOWED);
             var oStoreCerts = yield oStore.Certificates;
-            console.log("oStoreCerts");
-            console.log(oStoreCerts);
+            console.log("oStoreCerts", oStoreCerts);
             var oCertificates = yield oStoreCerts.Find(
                 cadesplugin.CAPICOM_CERTIFICATE_FIND_SUBJECT_NAME, certSubjectName);
-            console.log("oStoreCertificates");
-            console.log(oCertificates);
+            console.log("oStoreCertificates", oCertificates);
             var certsCount = yield oCertificates.Count;
-            console.log("certs count");
-            console.log(certsCount);
+            console.log("certs count", certsCount);
             if (certsCount === 0) {
                 err = "Certificate not found: " + certSubjectName;
                 alert(err);
                 args[1](err);
             }
             var oCertificate = yield oCertificates.Item(1);
-            console.log("oCertificate");
-            console.log(oCertificate);
+            console.log("oCertificate", oCertificate);
             var oSigner = yield cadesplugin.CreateObjectAsync("CAdESCOM.CPSigner");
-            console.log("oSigner");
-            console.log(oSigner);
+            console.log("oSigner", oSigner);
 
             yield oSigner.propset_Certificate(oCertificate);
             yield oSigner.propset_CheckCertificate(true);
@@ -92,23 +84,20 @@ function SignCreate(certSubjectName, dataToSign) {
 
             var oSignedData = yield cadesplugin.CreateObjectAsync("CAdESCOM.CadesSignedData");
             yield oSignedData.propset_Content(dataToSign);
-            console.log("oSignedData");
-            console.log(oSignedData);
+            console.log("oSignedData", oSignedData);
 
             try {
                 var sSignedMessage = yield oSignedData.SignCades(oSigner, cadesplugin.CADESCOM_CADES_X_LONG_TYPE_1);
-                console.log("sSigned Message");
-                console.log(sSignedMessage);
+                console.log("sSigned Message", sSignedMessage);
             } catch (e) {
-                console.error("exception finished!!!")
-                console.error(e);
+                console.error("exception finished!!! ", e);
                 err = cadesplugin.getLastError(e);
                 alert("Failed to create signature. Error: " + err);
                 args[1](err);
             }
 
             yield oStore.Close();
-            console.log("and return")
+            console.log("and return: ", sSignedMessage)
             return args[0](sSignedMessage);
         }, resolve, reject);
     });
@@ -155,20 +144,19 @@ window.createAndVerifySignature = function createAndVerifySignature() {
 
     SignCreate(sCertName, "Message").then(
         function (signedMessage) {
-            console.log("signedMessage");
-            console.log(signedMessage);
+            console.log("signedMessage", signedMessage);
             document.getElementById("signature").innerHTML = signedMessage;
             Verify(signedMessage).then(
                 function () {
                     alert("Signature verified");
                 },
                 function (err) {
-                    console.log("inner err " + err)
+                    console.log("inner err ", err)
                     document.getElementById("signature").innerHTML = err;
                 });
         },
         function (err) {
-            console.log("outer err " + err)
+            console.log("outer err ", err)
             document.getElementById("signature").innerHTML = err;
         }
     );
@@ -217,10 +205,13 @@ function get_version(ProviderName, ProviderType) {
 
 console.log("callCryptoProPlugin loaded")
 
-window.loadCertificates = function loadCertificates() {
+window.loadCertificates = function () {
+    console.log("cadesplugin", cadesplugin)
     if (typeof window.cadesplugin !== 'undefined') {
+        console.log("window.cadesplugin, ", window.cadesplugin);
         return window.cadesplugin.CreateObjectAsync("CAdESCOM.CPStore")
             .then(function (store) {
+                console.log("return store.Open");
                 return store.Open(cadesplugin.CADESCOM_CONTAINER_STORE);
             })
             .then(function (store) {
@@ -235,12 +226,14 @@ window.loadCertificates = function loadCertificates() {
                         validTo: cert.ValidToDate
                     });
                 }
+                console.log("return certList: ", certList)
                 return certList;
             })
             .catch(function (error) {
                 console.error("Ошибка при загрузке сертификатов: ", error);
                 throw error;
             });
+        console.log("CryptoPro плагин загружен, ", cadesplugin);
     } else {
         console.error("CryptoPro плагин не найден");
     }
