@@ -20,6 +20,7 @@ import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.data.selection.MultiSelect;
 import com.vaadin.flow.router.Route;
 import elemental.json.impl.JreJsonArray;
+import elemental.json.impl.JreJsonString;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import ru.CryptoPro.JCP.JCP;
@@ -110,8 +111,21 @@ public class MainView extends VerticalLayout {
         Button signButton = createSignButton(); //create button & set disable
 
         Div div = new Div();
-        div.setId("indicator");
-        div.setText("Версия плагина: ");
+        this.getElement().executeJs("return oAbout()")
+                .then(result -> {
+                            System.out.println("result: " + result.getClass().getSimpleName() + ": " + result);
+                            JreJsonString jreJsonString = (JreJsonString) result;
+                            String s = jreJsonString.toJson();
+                            System.out.println("s: " + s);
+                            if (s != null && !s.isEmpty()) {
+                                div.setText("Версия плагина: " + s.replaceAll("\"", ""));
+                                div.getStyle().set("background-color", "rgba(144, 238, 144, 0.5)");
+                            } else {
+                                div.setText("Версия плагина: неопределена, проверьте установку");
+                                div.getStyle().set("background-color", "rgba(255, 0, 0, 0.5)");
+                            }
+                        }
+                );
 
         HorizontalLayout header = new HorizontalLayout(div);
         HorizontalLayout toolbar = new HorizontalLayout(signButton);
