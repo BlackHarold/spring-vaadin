@@ -59,7 +59,7 @@ function include_async_code()
     }
     var fileref = document.createElement('script');
     fileref.setAttribute("type", "text/javascript");
-    fileref.setAttribute("src", "../script/async_code.js?v=271850");
+    fileref.setAttribute("src", "../script/async_code.js?v=271851");
     document.getElementsByTagName("head")[0].appendChild(fileref);
     async_Promise = new Promise(function(resolve, reject){
         async_resolve = resolve;
@@ -1075,6 +1075,7 @@ function CheckForPlugIn_NPAPI() {
     }
 
     function CheckUpdateServer(CurrentPluginVersion, CurrentCSPVersion) {
+        debugger;
         var StringPluginVersion = MakeVersionString(CurrentPluginVersion);
         var telemetryData = getTelemetryData(StringPluginVersion, CurrentCSPVersion);
         var paramsArray = [];
@@ -1101,6 +1102,7 @@ function CheckForPlugIn_NPAPI() {
                     }
                 }
             }
+            console.log("GET: ", "https://api.cryptopro.ru/v1/cades/getState\"?", params);
             xmlhttp.open("GET", "https://api.cryptopro.ru/v1/cades/getState" + params, true);
             xmlhttp.send(null);
         }

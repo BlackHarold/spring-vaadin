@@ -162,11 +162,17 @@ function CheckForPlugIn_Async() {
     setStateForCSP(Colors.INFO, "КриптоПро CSP не загружен");
     cadesplugin.async_spawn(function *() {
         var oAbout = yield cadesplugin.CreateObjectAsync("CAdESCOM.About");
+        console.log("oAbout, ", oAbout);
         cadesplugin.get_extension_version(ext_version_loaded_callback);
         cadesplugin.get_extension_id(ext_id_loaded_callback);
         var CurrentPluginVersion = yield oAbout.PluginVersion;
+        console.log("CurrentPluginVersion ", CurrentPluginVersion);
         versionStruct.plugin = yield CurrentPluginVersion.toString();
-        document.getElementById('PlugInVersionTxt').innerHTML = escapeHtml("Версия плагина: " + (versionStruct.plugin));
+        console.log("versionStruct, ", versionStruct);
+        console.log("CurrentPluginVersion.toString(), ", versionStruct.plugin);
+        var pluginVersionTxtValue = escapeHtml("Версия плагина: " + (versionStruct.plugin));
+        console.log("pluginVersionTxtValue ", pluginVersionTxtValue);
+        document.getElementById('PlugInVersionTxt').innerHTML = pluginVersionTxtValue;
         setStateForPlugin(Colors.SUCCESS, "Плагин загружен");
         var ver = yield oAbout.CSPVersion("", 80);
         versionStruct.csp = (yield ver.MajorVersion) + "." + (yield ver.MinorVersion) + "." + (yield ver.BuildVersion);
