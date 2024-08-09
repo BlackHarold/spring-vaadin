@@ -27,9 +27,7 @@ import ru.CryptoPro.JCP.JCP;
 import ru.CryptoPro.JCSP.JCSP;
 import ru.suek.model.FileDTO;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.Certificate;
@@ -301,9 +299,6 @@ public class MainView extends VerticalLayout {
                 String certId = selectedComboBoxValue.get("id").toString();
                 System.out.println("selectedComboBoxValue id: " + certId + " name: " + selectedComboBoxValue.get("name"));
 
-                //TODO выполняем javascript запрос cadesplugin на получение сертификата для подписи
-                // (crypto_plugin.signData(data, certId, options(attached?, pin?))
-
                 selection.getValue().stream()
                         .forEach(fileDTO -> {
                             //формируем ссылки на исходный файл и подписанный
@@ -312,8 +307,36 @@ public class MainView extends VerticalLayout {
                                     .replaceAll("/PDF/", "/PDF/SIGNED/")
                                     .replaceAll(".pdf", "_signed.pdf");
 
+                            //TODO преобразуем файл в blob
+                            byte[] fileData;
+                            String base64File;
+                            try (FileInputStream fis = new FileInputStream(rootPath);
+                                 ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+
+                                byte[] buffer = new byte[1024];
+                                int bytesRead;
+
+                                // Читаем файл в буфер и записываем в ByteArrayOutputStream
+                                while ((bytesRead = fis.read(buffer)) != -1) {
+                                    baos.write(buffer, 0, bytesRead);
+                                }
+
+                                fileData = baos.toByteArray();
+                                base64File = Base64.getEncoder().encodeToString(fileData);
+                            } catch (FileNotFoundException e) {
+                                throw new RuntimeException(e);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+
+
                             //TODO выполняем javascript запрос подписания 'cadesplugin' по его certId
-                            // (crypto_plugin.signData(data, certId, options(attached?, pin?))
+                            // (crypto_plugin.signData(fileData, certId, options(attached?, pin?))
+                            this.getElement().executeJs("return signData($0, $1, $2)", base64File/*file as blob*/, /*sha1*/certId, /*pin*/"")
+                                    .then(result -> {
+                                                System.out.println("result: " + result);
+                                            }
+                                    );
                         });
 
                 dialog.close();
