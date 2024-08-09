@@ -60,9 +60,9 @@ public class MainView extends VerticalLayout {
         return files;
     }
 
-    private ComboBox<String> getComboWithCertificates() {
-        ComboBox<String> comboBox = new ComboBox<>();
-        List<String> options = new ArrayList<>();
+    private ComboBox<JSONObject> getComboWithCertificates() {
+        ComboBox<JSONObject> comboBox = new ComboBox<>();
+        List<JSONObject> options = new ArrayList<>();
         this.getElement().executeJs("return certList()")
                 .then(result -> {
 
@@ -75,9 +75,11 @@ public class MainView extends VerticalLayout {
 
                             for (int i = 0; i < jsonArray.length(); i++) {
                                 JSONObject json = (JSONObject) jsonArray.get(i);
-                                options.add(json.toString());
+                                options.add(json);
                             }
+
                             comboBox.setItems(options);
+                            comboBox.setItemLabelGenerator(e -> e.get("name").toString());
                         }
                 );
 
@@ -97,7 +99,9 @@ public class MainView extends VerticalLayout {
         List<FileDTO> dtoFiles = files
                 .stream()
                 .map(file -> {
-                    FileDTO dto = new FileDTO(file.getName(), descriptions.get(counter.getAndIncrement()), file.getAbsolutePath());
+                    FileDTO dto = new FileDTO(file.getName(),
+                            descriptions.get(counter.getAndIncrement()), file.getAbsolutePath()
+                    );
                     return dto;
                 })
                 .toList();
@@ -278,7 +282,7 @@ public class MainView extends VerticalLayout {
 
 //        KeyStore keyStore = getKeyStore();
 //        ComboBox<String> comboBox = getAliasesBox(keyStore);
-        ComboBox<String> comboBox = getComboWithCertificates();
+        ComboBox<JSONObject> comboBox = getComboWithCertificates();
         comboBox.setWidthFull();
 
         Div infoText = new Div();
@@ -291,60 +295,26 @@ public class MainView extends VerticalLayout {
                 comboBox.focus();
             } else {
 
-                String selectedComboBoxValue = comboBox.getValue();
-                System.out.println("selectedComboBoxValue: " + selectedComboBoxValue);
+                JSONObject selectedComboBoxValue = comboBox.getValue();
 
-                selection.getValue().stream().forEach(fileDTO -> {
-                    String rootPath = Paths.get(fileDTO.getPath()).toUri().getPath();
-//                    String outputPath = rootPath
-//                            .replaceAll("/PDF/", "/PDF/SIGNED/")
-//                            .replaceAll(".pdf", "_signed.pdf");
+                //получаем отпечаток SHA1 (id) сертификата
+                String certId = selectedComboBoxValue.get("id").toString();
+                System.out.println("selectedComboBoxValue id: " + certId + " name: " + selectedComboBoxValue.get("name"));
 
-//                    try {
-                    // Получение ключей и сертификата
-//                        PrivateKey privateKey = (PrivateKey) keyStore.getKey(selectedComboBoxValue, "".toCharArray());
-                    //PublicKey publicKey = keyStore.getCertificate(selectedComboBoxValue).getPublicKey();
-//                        Certificate[] certificateChain = keyStore.getCertificateChain(selectedComboBoxValue);
-//                        printInfo(privateKey, (X509Certificate) keyStore.getCertificate(selectedComboBoxValue));
+                //TODO выполняем javascript запрос cadesplugin на получение сертификата для подписи
+                // (crypto_plugin.signData(data, certId, options(attached?, pin?))
 
-//                        for (int i = 0; i < certificateChain.length; i++) {
-//                            X509Certificate cert = (X509Certificate) certificateChain[i];
-//                            String algName = cert.getSigAlgName();
-//                            System.out.println("certificate " + i + ": " + cert + " algName: " + algName);
-//                        }
+                selection.getValue().stream()
+                        .forEach(fileDTO -> {
+                            //формируем ссылки на исходный файл и подписанный
+                            String rootPath = Paths.get(fileDTO.getPath()).toUri().getPath();
+                            String outputPath = rootPath
+                                    .replaceAll("/PDF/", "/PDF/SIGNED/")
+                                    .replaceAll(".pdf", "_signed.pdf");
 
-                    //TODO Получить эти параматры из формы или распарсить подпись?
-                    String location = "Российская федерация";
-                    String reason = "Тестовая подпись (ГОСТ 2012-256)";
-                    String contact = "+7 999 222 22 22";
-
-//                        SignVerifyPDFExample.sign(
-//                                privateKey,
-//                                JCP.GOST_DIGEST_2012_256_NAME,
-//                                JCSP.PROVIDER_NAME,
-//                                certificateChain,
-//                                fileDTO.getPath(),
-//                                outputPath,
-//                                location,
-//                                reason,
-//                                contact,
-//                                true
-//                        );
-
-//                        SignVerifyPDFExample.verify(outputPath, null, null, JCSP.PROVIDER_NAME);
-//                    } catch (KeyStoreException | NoSuchAlgorithmException ke) {
-//                        System.out.println("Key store exception: " + ExceptionUtils.getMessage(ke));
-//                    } catch (NoSuchProviderException e) {
-//                        System.out.println("No such provider exception: " + ExceptionUtils.getMessage(e));
-//                        throw new RuntimeException(e);
-//                    } catch (UnrecoverableKeyException e) {
-//                        System.out.println("Unrecoverable key: " + ExceptionUtils.getMessage(e));
-//                        throw new RuntimeException(e);
-//                    } catch (Exception e) {
-//                        System.out.println("other exceptions: " + ExceptionUtils.getMessage(e));
-//                        throw new RuntimeException(e);
-//                    }
-                });
+                            //TODO выполняем javascript запрос подписания 'cadesplugin' по его certId
+                            // (crypto_plugin.signData(data, certId, options(attached?, pin?))
+                        });
 
                 dialog.close();
             }
