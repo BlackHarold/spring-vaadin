@@ -316,90 +316,30 @@ window.getCertificate = function (certThumbprint, pin) {
         });
 };
 
-window.getCertificateByThumbprint = function getCertificateObject(certThumbprint, pin) {
-    if (canAsync) {
-        console.log("canAsync ", canAsync);
-        let oStore, oCertificate;
-        return cadesplugin.then(function () {
-            console.log("CreateObjectAsync");
-            return cadesplugin.CreateObjectAsync("CAPICOM.Store");
-        }).then(store => {
-            oStore = store;
-            console.log("oStore ", oStore);
-            return oStore.Open(cadesplugin.CAPICOM_CURRENT_USER_STORE,
-                cadesplugin.CAPICOM_MY_STORE,
-                cadesplugin.CAPICOM_STORE_OPEN_MAXIMUM_ALLOWED);
-        })
-            .then(function () {
-                console.log("findCertInStore")
-                findCertInStore(oStore, certThumbprint);
-            })
-            .then(cert => oStore.Close().then(() => {
-                console.log("oStore.Close().then");
-                console.log("hasContainerStore() ", hasContainerStore());
-                console.log("!cert ", !cert);
-                if (!cert && hasContainerStore()) {
-                    console.log("cert ", cert, " hasContainer ", hasContainerStore());
-                    return oStore.Open(cadesplugin.CADESCOM_CONTAINER_STORE)
-                        .then(() => findCertInStore(oStore, certThumbprint))
-                        .then(c => oStore.Close().then(() => c));
-                } else {
-                    console.log("cert ", cert);
-                    return cert;
-                }
-            }))
-            .then(certificate => {
-                if (!certificate) {
-                    throw new Error("Не обнаружен сертификат c отпечатком " + certThumbprint);
-                }
-                console.log("certificate ", certificate);
-                return oCertificate = certificate;
-            })
-            .then(() => oCertificate.HasPrivateKey())
-            .then(hasKey => {
-                let p = Promise.resolve();
-                if (hasKey && pin) {
-                    p = p.then(() => oCertificate.PrivateKey).then(privateKey => Promise.all([
-                        privateKey.propset_KeyPin(pin ? pin : ''),
-                        privateKey.propset_CachePin(binded)
-                    ]));
-                }
-                return p;
-            })
-            .then(function () {
-                console.log("return Certificate ", oCertificate);
-                return oCertificate;
-            });
-    } else {
-        let oCertificate;
-        const oStore = cadesplugin.CreateObject("CAPICOM.Store");
-        oStore.Open(cadesplugin.CAPICOM_CURRENT_USER_STORE,
-            cadesplugin.CAPICOM_MY_STORE,
-            cadesplugin.CAPICOM_STORE_OPEN_MAXIMUM_ALLOWED);
-        oCertificate = findCertInStore(oStore, certThumbprint);
-        oStore.Close();
+window.getCertificateByThumbprint = async function getCertificateByThumbprint(thumbprint) {
+    const store = await cadesplugin.CreateObjectAsync("CAPICOM.Store");
+    await store.Open(cadesplugin.CAPICOM_CURRENT_USER_STORE, cadesplugin.CAPICOM_MY_STORE, cadesplugin.CAPICOM_STORE_OPEN_MAXIMUM_ALLOWED);
 
-        if (!oCertificate && hasContainerStore()) {
-            oStore.Open(cadesplugin.CADESCOM_CONTAINER_STORE);
-            oCertificate = findCertInStore(oStore, certThumbprint);
-            oStore.Close();
+    const certificates = await store.Certificates;
+    for (let i = 1; i <= await certificates.Count; i++) {
+        const cert = await certificates.Item(i);
+        const certThumbprint = await cert.Thumbprint;
+
+        if (certThumbprint === thumbprint) {
+            // Получаем необходимые свойства сертификата
+            const subjectName = await cert.SubjectName;
+            const issuerName = await cert.IssuerName;
+            const thumbprint = await cert.Thumbprint;
+            const validFromDate = await cert.ValidFromDate;
+            const validToDate = await cert.ValidToDate;
+
+            // Получаем приватный ключ
+            const privateKey = await cert.PrivateKey;
+
+            return { cert, privateKey, subjectName, issuerName, thumbprint, validFromDate, validToDate };
         }
-
-        if (!oCertificate) {
-            throw new Error("Не обнаружен сертификат c отпечатком " + certThumbprint);
-        }
-
-        if (oCertificate.HasPrivateKey && pin) {
-            oCertificate.PrivateKey.KeyPin = pin ? pin : '';
-            if (oCertificate.PrivateKey.CachePin !== undefined) {
-                // возможно не поддерживается в ИЕ
-                // https://www.cryptopro.ru/forum2/default.aspx?g=posts&t=10170
-                oCertificate.PrivateKey.CachePin = binded;
-            }
-        }
-
-        return oCertificate;
     }
+    throw new Error("Сертификат с указанным отпечатком не найден.");
 }
 
 function findCertInStore(oStore, certThumbprint) {

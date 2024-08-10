@@ -337,7 +337,8 @@ public class MainView extends VerticalLayout {
 //                            this.getElement().executeJs("return signData($0, $1, $2, $3)", base64File/*file as blob*/, outputPath,/*sha1*/certId, /*pin*/"")
 //                            this.getElement().executeJs("return getCertificate($0, $1)", /*sha1*/certId, /*pin*/"")
                             this.getElement()
-                                    .executeJs("return getCertificateByThumbprint($0, $1)", /*sha1*/certId, /*pin*/"")
+//                                    .executeJs("return getCertificateByThumbprint($0, $1)", /*sha1*/certId, /*pin*/"")
+                                    .executeJs("return getCertificateByThumbprint($0)", /*sha1*/certId)
                                     .then(result -> {
                                                 System.out.println("result: " + result);
                                             }
