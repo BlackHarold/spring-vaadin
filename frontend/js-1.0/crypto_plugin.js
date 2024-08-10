@@ -1,3 +1,5 @@
+import {fi} from "date-fns/locale";
+
 let canAsync;
 let pluginVersion = '';
 let signerOptions = 0;
@@ -464,7 +466,7 @@ function versionCompare(a, b) {
  * @param {boolean} [options.attached] присоединенная подпись
  * @returns {Promise<string>} base64
  */
-window.signData = function (dataBase64, certThumbprint, options) {
+window.signData = function (dataBase64, outputPath, certThumbprint, options) {
     if (typeof options === 'string') {
         // обратная совместимость с версией 2.3
         options = {pin: options};
@@ -484,58 +486,51 @@ window.signData = function (dataBase64, certThumbprint, options) {
             .then(objects => {
                 oSigner = objects[0];
                 oSignedData = objects[1];
+                console.log("dataBase64, " + dataBase64);
                 return Promise.all([
                     oSigner.propset_Certificate(oCertificate),
                     oSigner.propset_Options(signerOptions),
                     // Значение свойства ContentEncoding должно быть задано до заполнения свойства Content
-                    oSignedData.propset_ContentEncoding(cadesplugin.CADESCOM_BASE64_TO_BINARY)
+                    oSignedData.propset_ContentEncoding(cadesplugin.CADESCOM_BASE64_TO_BINARY),
+                    oSignedData.propset_Content(dataBase64)
                 ]);
-            })
-            .then(() => {
-                console.log("dataBase64, " + dataBase64);
-                oSignedData.propset_Content(dataBase64)
             })
             .then(function () {
                 // oSignedData.SignCades(oSigner, cadesplugin.CADESCOM_CADES_BES, !attached);
                 var sSignedMessage = oSignedData.SignCades(oSigner, cadesplugin.CADESCOM_CADES_BES, true);
                 console.log("sSignedMessage. ", sSignedMessage);
-                var oSignedData2 = cadesplugin.CreateObjectAsync("CAdESCOM.CadesSignedData");
-                try {
-                    oSignedData2.propset_ContentEncoding(cadesplugin.CADESCOM_BASE64_TO_BINARY);
-                    oSignedData2.propset_Content(dataBase64);
-                    oSignedData2.VerifyCades(sSignedMessage, cadesplugin.CADESCOM_CADES_BES, true);
-                    alert("Signature verified");
-                } catch (err) {
-                    alert("Failed to verify signature. Error: " + cadesplugin.getLastError(err));
-                }
-            }).then(() => {
-                console.log("encoding ", oSignedData.ContentEncoding, " data: ", oSignedData.Content);
-                return oSignedData.Content;
-            }).then((signed) => {
+                return Promise.all([
+                    oSignedData.Content,
+                    oSignedData.ContentEncoding,
+                    sSignedMessage
+                ]);
+            }).then((oSignedData) => {
                 // Декодируем Base64 в бинарные данные
-                console.log("signed ", signed)
+                console.log("signed, ", oSignedData[0], " encoding, ", oSignedData[1], "[3] ", oSignedData[2]);
 
-                //vvvvvvvvvvvvvvvv FIXME vvvvvvvvvvvvvvvvvvvvvvvv
-                // const base64Pattern = /^[A-Za-z0-9+/]+={0,2}$/;
-                // console.log("isBase64Data ", base64Pattern.test(signed))
-                // var byteCharacters = atob(signed);
-                var byteCharacters = signed;
-
-                var byteNumbers = new Uint8Array(signed.length);
+                const base64Pattern = /^[A-Za-z0-9+/]+={0,2}$/;
+                console.log("isBase64Data ", base64Pattern.test(oSignedData[0]));
+                var byteCharacters = atob(oSignedData[0]);
+                var byteNumbers = new Uint8Array(byteCharacters.length);
                 for (var i = 0; i < byteCharacters.length; i++) {
                     byteNumbers[i] = byteCharacters.charCodeAt(i);
                 }
+
+                console.log("byteNumbers, ", [byteNumbers]);
 
                 // Создаем Blob из бинарных данных
                 var blob = new Blob([byteNumbers], {type: 'application/pdf'}); // Укажите правильный MIME-тип
 
                 // Создаем ссылку для скачивания
                 var link = document.createElement('a');
+
                 link.href = window.URL.createObjectURL(blob);
-                link.download = 'signedDocument.pdf'; // Укажите имя файла
+                link.download = "file.pdf"; // Укажите имя файла
                 document.body.appendChild(link);
                 link.click(); // Имитируем клик по ссылке
                 document.body.removeChild(link); // Удаляем ссылку из DOM
+
+                return byteCharacters;
             })
             .catch(e => {
                 const err = getError(e);

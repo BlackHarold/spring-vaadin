@@ -28,6 +28,7 @@ import ru.CryptoPro.JCSP.JCSP;
 import ru.suek.model.FileDTO;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.Certificate;
@@ -259,7 +260,7 @@ public class MainView extends VerticalLayout {
         Iterator<FileDTO> it = selectedItems.iterator();
         while (it.hasNext()) {
             FileDTO fileDTO = it.next();
-            System.out.println("result fileDTO: " + fileDTO);
+            System.out.println("fileDTO: " + fileDTO);
         }
 
         Dialog dialog = new Dialog();
@@ -323,6 +324,7 @@ public class MainView extends VerticalLayout {
 
                                 fileData = baos.toByteArray();
                                 base64File = Base64.getEncoder().encodeToString(fileData);
+
                             } catch (FileNotFoundException e) {
                                 throw new RuntimeException(e);
                             } catch (IOException e) {
@@ -332,7 +334,7 @@ public class MainView extends VerticalLayout {
 
                             //TODO выполняем javascript запрос подписания 'cadesplugin' по его certId
                             // (crypto_plugin.signData(fileData, certId, options(attached?, pin?))
-                            this.getElement().executeJs("return signData($0, $1, $2)", base64File/*file as blob*/, /*sha1*/certId, /*pin*/"")
+                            this.getElement().executeJs("return signData($0, $1, $2, $3)", base64File/*file as blob*/, outputPath,/*sha1*/certId, /*pin*/"")
                                     .then(result -> {
                                                 System.out.println("result: " + result);
                                             }
