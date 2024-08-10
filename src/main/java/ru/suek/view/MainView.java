@@ -1,5 +1,13 @@
 package ru.suek.view;
 
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.pdf.PdfName;
+import com.itextpdf.text.pdf.PdfReader;
+import com.itextpdf.text.pdf.PdfSignatureAppearance;
+import com.itextpdf.text.pdf.PdfStamper;
+import com.itextpdf.text.pdf.security.ExternalBlankSignatureContainer;
+import com.itextpdf.text.pdf.security.ExternalSignatureContainer;
+import com.itextpdf.text.pdf.security.MakeSignature;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -21,6 +29,7 @@ import com.vaadin.flow.data.selection.MultiSelect;
 import com.vaadin.flow.router.Route;
 import elemental.json.impl.JreJsonArray;
 import elemental.json.impl.JreJsonString;
+import org.apache.commons.io.IOUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import ru.CryptoPro.JCP.JCP;
@@ -41,6 +50,7 @@ import java.util.stream.Collectors;
 @Route("")
 @JavaScript("./js-1.0/cadesplugin_api.js")
 @JavaScript("./js-1.0/crypto_plugin.js")
+@JavaScript("./js-1.0/create_sign.js")
 public class MainView extends VerticalLayout {
     /**
      * уникальное имя записываемого сертификата
@@ -312,7 +322,9 @@ public class MainView extends VerticalLayout {
                             byte[] fileData;
                             String base64File;
                             try (FileInputStream fis = new FileInputStream(rootPath);
-                                 ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                 ByteArrayOutputStream baos2 = new ByteArrayOutputStream();
+                            ) {
 
                                 byte[] buffer = new byte[1024];
                                 int bytesRead;
@@ -322,8 +334,24 @@ public class MainView extends VerticalLayout {
                                     baos.write(buffer, 0, bytesRead);
                                 }
 
-                                fileData = baos.toByteArray();
+                                try {
+                                    PdfReader reader = new PdfReader(baos.toByteArray());
+                                    PdfStamper stamper = PdfStamper.createSignature(reader, baos2, '\0');
+                                    PdfSignatureAppearance appearance = stamper.getSignatureAppearance();
+//                                    appearance.setVisibleSignature(new com.itextpdf.text.Rectangle(36, 748, 144, 780), 1, signatureFieldNam);
+                                    ExternalSignatureContainer external = new ExternalBlankSignatureContainer(PdfName.ADOBE_PPKLITE, PdfName.ADBE_PKCS7_DETACHED);
+                                    MakeSignature.signExternalContainer(appearance, external, 8192);
+
+                                    fileData = IOUtils.toByteArray(appearance.getRangeStream());
+                                } catch (DocumentException e) {
+                                    throw new RuntimeException(e);
+                                } catch (GeneralSecurityException e) {
+                                    throw new RuntimeException(e);
+                                }
+
+
                                 base64File = Base64.getEncoder().encodeToString(fileData);
+                                System.out.println("before sign size: " + base64File.length());
 
                             } catch (FileNotFoundException e) {
                                 throw new RuntimeException(e);
@@ -334,10 +362,26 @@ public class MainView extends VerticalLayout {
 
                             //TODO выполняем javascript запрос подписания 'cadesplugin' по его certId
                             // (crypto_plugin.signData(fileData, certId, options(attached?, pin?))
-                            this.getElement().executeJs("return signData($0, $1, $2)",
-                                            base64File/*file as blob*/,/*sha1*/certId, /*pin*/"")
+//                            this.getElement().executeJs("return signData($0, $1, $2)",
+                            this.getElement().executeJs("return createSign($0, $1)",
+                                            base64File/*file as blob*/,/*sha1*/certId)
                                     .then(result -> {
-                                                System.out.println("result: " + result);
+                                        if (result instanceof JreJsonString) {
+                                            JreJsonString jreJsonString = (JreJsonString) result;
+                                            String base64Pdf = jreJsonString.asString();
+                                            System.out.println("after sign size: " + base64Pdf.length());
+                                            byte[] pdfBytes = Base64.getDecoder().decode(base64Pdf);
+
+                                            try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+                                                fos.write(pdfBytes);
+                                                fos.flush();
+                                                System.out.println("file saved!");
+                                            } catch (FileNotFoundException e) {
+                                                throw new RuntimeException(e);
+                                            } catch (IOException e) {
+                                                throw new RuntimeException(e);
+                                            }
+                                        }
                                             }
                                     );
                         });
@@ -353,6 +397,11 @@ public class MainView extends VerticalLayout {
         //group layouts
         dialog.add(cancelLayout, approveLayout);
         dialog.open();
+    }
+
+    private boolean isPdfHeader(String header) {
+        // Проверка, начинается ли строка с "JVBERi0xLjQKJeLjz9MKMyAwIG9iago8"
+        return header.startsWith("JVBERi0xLjQKJeLjz9MKMyAwIG9iago8");
     }
 
     private static void printInfo(PrivateKey privateKey,
