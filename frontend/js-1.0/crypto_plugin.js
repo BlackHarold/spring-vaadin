@@ -316,7 +316,7 @@ window.getCertificate = function (certThumbprint, pin) {
         });
 };
 
-function getCertificateObject(certThumbprint, pin) {
+window.getCertificateByThumbprint = function getCertificateObject(certThumbprint, pin) {
     if (canAsync) {
         console.log("canAsync ", canAsync);
         let oStore, oCertificate;
@@ -397,6 +397,7 @@ function getCertificateObject(certThumbprint, pin) {
                 oCertificate.PrivateKey.CachePin = binded;
             }
         }
+
         return oCertificate;
     }
 }
