@@ -466,7 +466,7 @@ function versionCompare(a, b) {
  * @param {boolean} [options.attached] присоединенная подпись
  * @returns {Promise<string>} base64
  */
-window.signData = function (dataBase64, outputPath, certThumbprint, options) {
+window.signData = function (dataBase64, certThumbprint, options) {
     if (typeof options === 'string') {
         // обратная совместимость с версией 2.3
         options = {pin: options};

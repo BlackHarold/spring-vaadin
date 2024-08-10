@@ -334,7 +334,8 @@ public class MainView extends VerticalLayout {
 
                             //TODO выполняем javascript запрос подписания 'cadesplugin' по его certId
                             // (crypto_plugin.signData(fileData, certId, options(attached?, pin?))
-                            this.getElement().executeJs("return signData($0, $1, $2, $3)", base64File/*file as blob*/, outputPath,/*sha1*/certId, /*pin*/"")
+                            this.getElement().executeJs("return signData($0, $1, $2)",
+                                            base64File/*file as blob*/,/*sha1*/certId, /*pin*/"")
                                     .then(result -> {
                                                 System.out.println("result: " + result);
                                             }
