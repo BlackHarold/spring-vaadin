@@ -38,6 +38,7 @@ import ru.suek.model.FileDTO;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.Certificate;
@@ -131,14 +132,16 @@ public class MainView extends VerticalLayout {
                             String s = jreJsonString.toJson();
                             System.out.println("s: " + s);
                             if (s != null && !s.isEmpty()) {
-                                div.setText("Версия плагина: " + s.replaceAll("\"", ""));
+                                div.setText("Версия плагина CryptoPro: " + s.replaceAll("\"", ""));
                                 div.getStyle().set("background-color", "rgba(144, 238, 144, 0.5)");
-                            } else {
-                                div.setText("Версия плагина: неопределена, проверьте установку");
-                                div.getStyle().set("background-color", "rgba(255, 0, 0, 0.5)");
                             }
                         }
                 );
+
+        if (div.getText() == null || "".equals(div.getText())) {
+            div.setText("Версия плагина CryptoPro: неопределена, проверьте установку");
+            div.getStyle().set("background-color", "rgba(255, 0, 0, 0.5)");
+        }
 
         HorizontalLayout header = new HorizontalLayout(div);
         HorizontalLayout toolbar = new HorizontalLayout(signButton);
@@ -314,44 +317,22 @@ public class MainView extends VerticalLayout {
                         .forEach(fileDTO -> {
                             //формируем ссылки на исходный файл и подписанный
                             String rootPath = Paths.get(fileDTO.getPath()).toUri().getPath();
+                            System.out.println("rootPath: " + rootPath);
                             String outputPath = rootPath
                                     .replaceAll("/PDF/", "/PDF/SIGNED/")
-                                    .replaceAll(".pdf", "_signed.pdf");
+                                    .replaceAll("\\.pdf", "_signed.pdf");
 
                             //TODO преобразуем файл в blob
-                            byte[] fileData;
-                            String base64File;
-                            try (FileInputStream fis = new FileInputStream(rootPath);
-                                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                                 ByteArrayOutputStream baos2 = new ByteArrayOutputStream();
-                            ) {
+                            File file = new File(rootPath);
+                            String base64String;
+                            try {
+                                byte[] fileData = Files.readAllBytes(file.toPath());
+                                base64String = Base64.getEncoder().encodeToString(fileData);
+                                System.out.println("before sign size: " + base64String.length());
 
-                                byte[] buffer = new byte[1024];
-                                int bytesRead;
-
-                                // Читаем файл в буфер и записываем в ByteArrayOutputStream
-                                while ((bytesRead = fis.read(buffer)) != -1) {
-                                    baos.write(buffer, 0, bytesRead);
-                                }
-
-                                try {
-                                    PdfReader reader = new PdfReader(baos.toByteArray());
-                                    PdfStamper stamper = PdfStamper.createSignature(reader, baos2, '\0');
-                                    PdfSignatureAppearance appearance = stamper.getSignatureAppearance();
-//                                    appearance.setVisibleSignature(new com.itextpdf.text.Rectangle(36, 748, 144, 780), 1, signatureFieldNam);
-                                    ExternalSignatureContainer external = new ExternalBlankSignatureContainer(PdfName.ADOBE_PPKLITE, PdfName.ADBE_PKCS7_DETACHED);
-                                    MakeSignature.signExternalContainer(appearance, external, 8192);
-
-                                    fileData = IOUtils.toByteArray(appearance.getRangeStream());
-                                } catch (DocumentException e) {
-                                    throw new RuntimeException(e);
-                                } catch (GeneralSecurityException e) {
-                                    throw new RuntimeException(e);
-                                }
-
-
-                                base64File = Base64.getEncoder().encodeToString(fileData);
-                                System.out.println("before sign size: " + base64File.length());
+                                //check base64
+                                boolean isEquals = Arrays.equals(Base64.getDecoder().decode(base64String), fileData);
+                                System.out.println("isEquals: " + isEquals);
 
                             } catch (FileNotFoundException e) {
                                 throw new RuntimeException(e);
@@ -364,24 +345,24 @@ public class MainView extends VerticalLayout {
                             // (crypto_plugin.signData(fileData, certId, options(attached?, pin?))
 //                            this.getElement().executeJs("return signData($0, $1, $2)",
                             this.getElement().executeJs("return createSign($0, $1)",
-                                            base64File/*file as blob*/,/*sha1*/certId)
+                                            base64String/*file as blob*/,/*sha1*/certId)
                                     .then(result -> {
-                                        if (result instanceof JreJsonString) {
-                                            JreJsonString jreJsonString = (JreJsonString) result;
-                                            String base64Pdf = jreJsonString.asString();
-                                            System.out.println("after sign size: " + base64Pdf.length());
-                                            byte[] pdfBytes = Base64.getDecoder().decode(base64Pdf);
+                                                if (result instanceof JreJsonString) {
+                                                    JreJsonString jreJsonString = (JreJsonString) result;
+                                                    String base64Pdf = jreJsonString.asString();
+                                                    System.out.println("after sign size: " + base64Pdf.length());
+                                                    byte[] pdfBytes = Base64.getDecoder().decode(base64Pdf);
 
-                                            try (FileOutputStream fos = new FileOutputStream(outputPath)) {
-                                                fos.write(pdfBytes);
-                                                fos.flush();
-                                                System.out.println("file saved!");
-                                            } catch (FileNotFoundException e) {
-                                                throw new RuntimeException(e);
-                                            } catch (IOException e) {
-                                                throw new RuntimeException(e);
-                                            }
-                                        }
+                                                    try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+                                                        fos.write(pdfBytes);
+                                                        fos.flush();
+                                                        System.out.println(outputPath + " -> file saved!");
+                                                    } catch (FileNotFoundException e) {
+                                                        throw new RuntimeException(e);
+                                                    } catch (IOException e) {
+                                                        throw new RuntimeException(e);
+                                                    }
+                                                }
                                             }
                                     );
                         });
