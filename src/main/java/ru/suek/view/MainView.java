@@ -350,6 +350,8 @@ public class MainView extends VerticalLayout {
                                                 if (result instanceof JreJsonString) {
                                                     JreJsonString jreJsonString = (JreJsonString) result;
                                                     String base64Pdf = jreJsonString.asString();
+                                                    base64Pdf = base64Pdf.replaceAll("[^A-Za-z0-9+/=]", "");
+
                                                     System.out.println("after sign size: " + base64Pdf.length());
                                                     byte[] pdfBytes = Base64.getDecoder().decode(base64Pdf);
 

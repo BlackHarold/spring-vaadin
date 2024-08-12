@@ -40,7 +40,7 @@ window.createSign = async function (dataToSign, selectedCertID) {
         var oSignedData = await cadesplugin.CreateObjectAsync("CAdESCOM.CadesSignedData");
         console.log("oSignedData ", oSignedData);
         //Установка кодитровки содержимого
-        // await oSignedData.propset_ContentEncoding(cadesplugin.CADESCOM_BASE64_TO_BINARY);
+        await oSignedData.propset_ContentEncoding(cadesplugin.CADESCOM_BASE64_TO_BINARY);
         //проверка кодировки dataToSign
 
         //Установка содержимого PDF для подписи
@@ -59,20 +59,18 @@ window.createSign = async function (dataToSign, selectedCertID) {
         });
 
         // Сохранение в файл
-        saveToFile(signedMessage, "signedDocument.pdf");
+        saveToFile(signedMessage, "signedDocument.p7s");
     } catch (err) {
         throw "Не удалось создать подпись из-за ошибки: " + cadesplugin.getLastError(err);
     }
 
     //return first string
-    var signedMessageBase64 = btoa(String.fromCharCode.apply(null, new Uint8Array(signedMessage)));
-    return signedMessageBase64;
+    // var signedMessageBase64 = btoa(String.fromCharCode.apply(null, new Uint8Array(signedMessage)));
+    return signedMessage;
 }
 
 // Функция для сохранения подписанного PDF
 function saveToFile(data, filename) {
-    // Преобразование подписанного сообщения в Base64
-    // var signedMessageBase64 = btoa(String.fromCharCode.apply(null, new Uint8Array(data)));
 
     // Создание ссылки для скачивания
     const link = document.createElement('a');
