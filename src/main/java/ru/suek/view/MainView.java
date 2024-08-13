@@ -1,13 +1,5 @@
 package ru.suek.view;
 
-import com.itextpdf.text.DocumentException;
-import com.itextpdf.text.pdf.PdfName;
-import com.itextpdf.text.pdf.PdfReader;
-import com.itextpdf.text.pdf.PdfSignatureAppearance;
-import com.itextpdf.text.pdf.PdfStamper;
-import com.itextpdf.text.pdf.security.ExternalBlankSignatureContainer;
-import com.itextpdf.text.pdf.security.ExternalSignatureContainer;
-import com.itextpdf.text.pdf.security.MakeSignature;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -29,7 +21,6 @@ import com.vaadin.flow.data.selection.MultiSelect;
 import com.vaadin.flow.router.Route;
 import elemental.json.impl.JreJsonArray;
 import elemental.json.impl.JreJsonString;
-import org.apache.commons.io.IOUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import ru.CryptoPro.JCP.JCP;
@@ -37,7 +28,6 @@ import ru.CryptoPro.JCSP.JCSP;
 import ru.suek.model.FileDTO;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.*;
