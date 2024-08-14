@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сертификаты с использованием cadesplugin_api</title>
+    <script src="../script/cadesplugin_api.js?v=271851"></script>
+    <script src="../script/async_code.js?v=271851"></script>
+    <script src="../script/lights.js?v=271851"></script>
+    <script src="../script/Code.js?v=271851"></script>
+    <script>
+        async function loadCertificates() {
+            try {
+                // Проверка на наличие cadesplugin
+                if (!cadesplugin) {
+                    alert("cadesplugin не доступен. Убедитесь, что плагин установлен.");
+                    return;
+                }
+
+                //проверить async для cadesplugin
+                const canAsync = !!cadesplugin.CreateObjectAsync;
+                console.log("canAsync " + canAsync);
+
+                // Инициализация cadesplugin
+                const oStore = await cadesplugin.CreateObjectAsync("CAPICOM.Store");
+                console.log("store ", oStore);
+
+                //const signerOptions = cadesplugin.CAPICOM_CERTIFICATE_INCLUDE_WHOLE_CHAIN;
+                const signerOptions = cadesplugin.CAPICOM_CERTIFICATE_INCLUDE_END_ENTITY_ONLY;
+                console.log("signerOptions ", signerOptions);
+
+                var oAbout = cadesplugin.CreateObjectAsync("CAdESCOM.About");
+                console.log("oAbout ", oAbout);
+
+                var pluginVersion = await oAbout.then((about) => {
+                    return about.Version;
+                });
+                console.log("pluginVersion ", pluginVersion);
+
+                var awaitCert = cadesplugin.CreateObjectAsync("CAdESCOM.Certificate");
+                console.log("await cert ", awaitCert);
+                var certificates = await awaitCert.then((r_cert) => {
+                    return r_cert;
+                });
+                console.log("cert ", certificates);
+
+                // var rawCerts = oStore.Certificates;
+                // console.log("rawCerts", rawCerts);
+
+                // function Common_CheckForPlugIn() {
+                cadesplugin.set_log_level(cadesplugin.LOG_LEVEL_DEBUG);
+                if (canAsync) {
+                    debugger;
+                    include_async_code().then(function () {
+                        return CheckForPlugIn_Async();
+                    });
+                } else {
+                    return CheckForPlugIn_NPAPI();
+                }
+                // }
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+                // Получение хранилища сертификатов
+                // await store.Open(2, "", 0); // 2 - CAPICOM_CURRENT_USER_STORE
+
+                // Получение сертификатов
+                // const certificates = await store.Certificates;
+
+                // Получение элемента select
+                const selectBox = document.getElementById("certificatesSelect");
+                selectBox.innerHTML = ""; // Очистка предыдущих значений
+
+                // Заполнение select с сертификатами
+                for (let i = 1; i <= certificates.Count; i++) {
+                    const cert = await certificates.Item(i);
+                    const option = document.createElement("option");
+                    option.value = await cert.Thumbprint; // Используем отпечаток сертификата как значение
+                    option.text = await cert.SubjectName; // Используем имя субъекта как текст
+                    selectBox.appendChild(option);
+                }
+            } catch (error) {
+                console.error("Ошибка при загрузке сертификатов:", error);
+                alert("Ошибка при загрузке сертификатов: " + error.message);
+            }
+        }
+    </script>
+</head>
+<body>
+<h1>Выбор сертификата</h1>
+<button onclick="loadCertificates()">Загрузить сертификаты</button>
+<br><br>
+<select id="certificatesSelect">
+    <option value="">Выберите сертификат</option>
+</select>
+</body>
+</html>

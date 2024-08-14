@@ -5,6 +5,7 @@ buildscript {
 
     dependencies {
         classpath files('./resources/plugins/dependency-management-plugin-1.1.5.jar')
+        classpath files('./resources/plugins/spring-boot-autoconfigure-3.3.0.jar')
         classpath files('./resources/plugins/spring-boot-gradle-plugin-3.3.0.jar')
         classpath files('./resources/plugins/vaadin-gradle-plugin-24.3.12.jar')
     }
@@ -15,6 +16,7 @@ plugins {
 //    id 'org.springframework.boot' version '3.3.0'
     id 'io.spring.dependency-management' version '1.1.5'
     id 'com.vaadin' version '24.3.12'
+    id 'ear'
 }
 
 group = 'local.aep'
@@ -22,6 +24,7 @@ version = '0.0.1-SNAPSHOT'
 
 java {
     sourceCompatibility = '17'
+    targetCompatibility = '17'
 }
 
 repositories {
@@ -33,12 +36,37 @@ ext {
 }
 
 dependencies {
+//    implementation 'com.vaadin:vaadin-spring-boot-starter:24.3.12'
+//    implementation 'org.springframework.boot:spring-boot-starter-web'
+    // https://mvnrepository.com/artifact/org.json/json
+//    implementation group: 'org.json', name: 'json', version: '20240303'
+
+
     implementation fileTree(dir: './resources/libs', includes: ['*.jar'])
     implementation fileTree(dir: './resources/libs/crypto', includes: ['*.jar'])
+    implementation fileTree(dir: './resources/plugins', includes: ['*.jar'])
+
+    earlib fileTree(dir: './resources/libs', includes: ['*.jar'])
+    earlib fileTree(dir: './resources/libs/crypto', includes: ['*.jar'])
+}
+
+tasks.named('ear') {
+    appDirectory = file('src/main/app')
+    libDirName = 'APP-INF/lib'
+    deploymentDescriptor {
+        applicationName = "my-ear-app"
+        initializeInOrder = true
+        displayName = "My EAR Application"
+        description = "Spring Boot + Vaadin application packaged as EAR"
+    }
 }
 
 tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
+}
+
+tasks.withType(Jar) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 tasks.register("copyDependencies", Copy) {
