@@ -51,7 +51,7 @@ dependencies {
 }
 
 tasks.named('ear') {
-    appDirectory = file('src/main/app')
+    appDirectory = file('./src/main/app')
     libDirName = 'APP-INF/lib'
     deploymentDescriptor {
         applicationName = "my-ear-app"
