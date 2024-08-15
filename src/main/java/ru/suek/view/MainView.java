@@ -1,5 +1,10 @@
 package ru.suek.view;
 
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.Element;
+import com.itextpdf.text.Font;
+import com.itextpdf.text.Phrase;
+import com.itextpdf.text.pdf.*;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -20,6 +25,7 @@ import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.data.selection.MultiSelect;
 import com.vaadin.flow.router.Route;
 import elemental.json.impl.JreJsonArray;
+import elemental.json.impl.JreJsonObject;
 import elemental.json.impl.JreJsonString;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -34,6 +40,8 @@ import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -68,7 +76,7 @@ public class MainView extends VerticalLayout {
 
                             JreJsonArray jreJsonArray = (JreJsonArray) result;
                             String s = jreJsonArray.toJson();
-                            System.out.println("s" + s);
+                            System.out.println("return certList()-> " + s);
 
                             JSONArray jsonArray = new JSONArray(s);
                             System.out.println("jsonArray" + jsonArray);
@@ -296,70 +304,146 @@ public class MainView extends VerticalLayout {
                 Notification.show("Пожалуйста, выберете сертификат!", 1000, Notification.Position.MIDDLE);
                 comboBox.focus();
             } else {
-
                 JSONObject selectedComboBoxValue = comboBox.getValue();
 
                 //получаем отпечаток SHA1 (id) сертификата
                 String certId = selectedComboBoxValue.get("id").toString();
                 System.out.println("selectedComboBoxValue id: " + certId + " name: " + selectedComboBoxValue.get("name"));
 
-                selection.getValue().stream()
-                        .forEach(fileDTO -> {
-                            //формируем ссылки на исходный файл и подписанный
-                            String rootPath = Paths.get(fileDTO.getPath()).toUri().getPath();
-                            System.out.println("rootPath: " + rootPath);
-                            String outputPath = rootPath
-                                    .replaceAll("/PDF/", "/PDF/SIGNED/")
-                                    .replaceAll("\\.pdf", "_signed.pdf");
+                selection.getValue().forEach(fileDTO -> {
+                    //формируем ссылки на исходный файл и подписанный
+                    String rootPath = Paths.get(fileDTO.getPath()).toUri().getPath();
+                    System.out.println("rootPath: " + rootPath);
+                    String outputPath = rootPath
+                            .replaceAll("/PDF/", "/PDF/SIGNED/")
+                            .replaceAll("\\.pdf", "_signed.pdf");
+                    String outputP7SPath = outputPath + ".p7s";
 
-                            //TODO преобразуем файл в blob
-                            File file = new File(rootPath);
-                            String base64String;
-                            try {
-                                byte[] fileData = Files.readAllBytes(file.toPath());
-                                base64String = Base64.getEncoder().encodeToString(fileData);
+                    StringBuilder stampText = new StringBuilder();
+                    this.getElement().executeJs("return get_cert_info($0, $1)", /*sha1*/ certId, /*options*/ null)
+                            .then(oInfo -> {
+                                JreJsonObject jsonObject = (JreJsonObject) oInfo;
+                                System.out.println("oInfo: " + oInfo);
+                                JSONObject mainObject = new JSONObject(jsonObject);
+                                System.out.println("main object: " + mainObject);
+                                JSONObject object = mainObject.getJSONObject("object");
+                                JSONObject issuer = object.optJSONObject("Issuer");
+                                System.out.println("issuer: " + issuer);
+                                JSONObject subject = object.optJSONObject("Subject");
+                                System.out.println("subject: " + subject);
+                                String thumbprint = object.getString("Thumbprint");
+                                System.out.println("thumbprint: " + thumbprint);
+                                String validFromDate = object.getString("ValidFromDate");
+                                System.out.println("validFromDate: " + validFromDate);
+                                String validToDate = object.getString("ValidToDate");
+                                System.out.println("validToDate: " + validToDate);
+
+                                //Извлечение даты
+                                LocalDate fromDate = LocalDate.parse(validFromDate.substring(0, 10));
+                                LocalDate toDate = LocalDate.parse(validToDate.substring(0, 10));
+
+                                //Форматирование даты в нужном формате
+                                String formattedFromDate = fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                                String formattedToDate = toDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+                                //Рисование рамки штампа (ГОСТ Р 7.0.97-2016)
+                                stampText
+                                        .append("Документ подписан электронной подписью").append("\n")
+                                        .append("Сертификат: ").append(thumbprint).append("\n")
+                                        .append("Владелец: ").append(subject.get("CN")).append("\n")
+                                        .append("Действителен: ")
+                                        .append("c ").append(formattedFromDate)
+                                        .append(" по ").append(formattedToDate).append("\n");
+                                System.out.println("stamp text: \n\t" + stampText);
+
+                                System.out.println("try to sign pdf");
+                                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                try {
+                                    String[] lines = stampText.toString().split("\n");
+                                    System.out.println("lines: " + lines.length);
+
+                                    PdfReader reader = new PdfReader(rootPath);
+//                                            PdfStamper stamper = new PdfStamper(reader, fos);
+                                    PdfStamper stamper = new PdfStamper(reader, baos);
+
+                                    BaseFont bf = BaseFont.createFont("./resources/fonts/FreeSans.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                                    Font font = new Font(bf, 10);
+
+                                    PdfContentByte content = stamper.getOverContent(1);
+
+
+                                    float padding = 10;
+
+                                    //Определение координат для рамки
+                                    //Получение ширины страницы
+                                    float pageWidth = reader.getPageSize(1).getWidth();
+                                    float width = 300; //Ширина рамки
+                                    float x = pageWidth - width - padding * 2; //Положение по X
+                                    float y = 50; //Положение по Y
+                                    float height = lines.length * (font.getSize() + 2); //Высота рамки
+//
+
+                                    content.setLineWidth(1);
+                                    content.rectangle(x - padding, y - padding, width + padding * 2, height + padding * 2);
+                                    content.stroke();
+
+                                    //Установка текста
+                                    content.beginText();
+                                    content.setTextMatrix(x, y - padding); //Начальная позиция текста
+
+                                    //Разбиение текста на строки
+                                    y = y + height - padding;
+                                    for (String line : lines) {
+                                        ColumnText.showTextAligned(content, Element.ALIGN_LEFT, new Phrase(line, font), x, y, 0);
+                                        y -= font.getSize() + 2;
+                                    }
+
+                                    //Закрытие объектов PdfStamper и PdfReader
+                                    stamper.close();
+                                    reader.close();
+                                    System.out.println("Фвйл сохранен в путь " + outputPath);
+                                } catch (DocumentException | IOException e) {
+                                    System.err.println("Exception: " + e.getMessage());
+                                    throw new RuntimeException(e);
+                                }
+
+                                byte[] fileData = baos.toByteArray();
+                                String base64String = Base64.getEncoder().encodeToString(fileData);
+
+                                //TODO выполняем javascript запрос подписания 'cadesplugin' по его certId
+                                // (crypto_plugin.signData(fileData, certId, options(attached?, pin?))
                                 System.out.println("before sign size: " + base64String.length());
 
                                 //check base64
                                 boolean isEquals = Arrays.equals(Base64.getDecoder().decode(base64String), fileData);
                                 System.out.println("isEquals: " + isEquals);
-
-                            } catch (FileNotFoundException e) {
-                                throw new RuntimeException(e);
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-
-
-                            //TODO выполняем javascript запрос подписания 'cadesplugin' по его certId
-                            // (crypto_plugin.signData(fileData, certId, options(attached?, pin?))
 //                            this.getElement().executeJs("return signData($0, $1, $2)",
-                            this.getElement().executeJs("return createSign($0, $1)",
-                                            base64String/*file as blob*/,/*sha1*/certId)
-                                    .then(result -> {
-                                                if (result instanceof JreJsonString) {
-                                                    JreJsonString jreJsonString = (JreJsonString) result;
-                                                    String base64Pdf = jreJsonString.asString();
-                                                    base64Pdf = base64Pdf.replaceAll("[^A-Za-z0-9+/=]", "");
+                                this.getElement().executeJs("return createSign($0, $1)",
+                                                base64String/*file as blob*/, certId)
+                                        .then(result -> {
+                                                    if (result instanceof JreJsonString) {
+                                                        JreJsonString jreJsonString = (JreJsonString) result;
+                                                        String base64Pdf = jreJsonString.asString();
+                                                        base64Pdf = base64Pdf.replaceAll("[^A-Za-z0-9+/=]", "");
 
-                                                    System.out.println("after sign size: " + base64Pdf.length());
-                                                    byte[] pdfBytes = Base64.getDecoder().decode(base64Pdf);
+                                                        System.out.println("after sign size: " + base64Pdf.length());
+                                                        byte[] pdfBytes = Base64.getDecoder().decode(base64Pdf);
 
-                                                    try (FileOutputStream fos = new FileOutputStream(outputPath)) {
-                                                        fos.write(pdfBytes);
-                                                        fos.flush();
-                                                        System.out.println(outputPath + " -> file saved!");
-                                                    } catch (FileNotFoundException e) {
-                                                        throw new RuntimeException(e);
-                                                    } catch (IOException e) {
-                                                        throw new RuntimeException(e);
+                                                        try (FileOutputStream fos = new FileOutputStream(outputP7SPath)) {
+                                                            fos.write(pdfBytes);
+                                                            fos.flush();
+                                                            System.out.println(outputPath + " -> file saved!");
+                                                        } catch (FileNotFoundException e) {
+                                                            throw new RuntimeException(e);
+                                                        } catch (IOException e) {
+                                                            throw new RuntimeException(e);
+                                                        }
                                                     }
                                                 }
-                                            }
-                                    );
-                        });
-
-                dialog.close();
+                                        );
+                            });
+                    dialog.close();
+                });
             }
         });
 
