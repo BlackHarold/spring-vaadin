@@ -107,8 +107,11 @@ public class MainView extends VerticalLayout {
         List<FileDTO> dtoFiles = files
                 .stream()
                 .map(file -> {
+                    long fileLength = file.length();
+                    long sizeMb = fileLength / 1024 / 1024;
+                    long sizeKb = fileLength / 1024;
                     FileDTO dto = new FileDTO(file.getName(),
-                            descriptions.get(counter.getAndIncrement()), file.getAbsolutePath()
+                            descriptions.get(counter.getAndIncrement()), file.getAbsolutePath(), sizeMb > 0 ? file.length() / 1024 / 1024 + " Мб" : sizeKb > 0 ? sizeKb + "Кб" : fileLength + " байт"
                     );
                     return dto;
                 })
@@ -531,6 +534,7 @@ public class MainView extends VerticalLayout {
 
         grid.getColumnByKey("name").setHeader("Имя");
         grid.getColumnByKey("description").setHeader("Описание");
+        grid.getColumnByKey("size").setHeader("Размер");
         grid.removeColumnByKey("path");
 //        grid.getColumnByKey("path").setHeader("Путь");
 
