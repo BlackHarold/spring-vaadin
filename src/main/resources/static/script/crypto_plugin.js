@@ -16,7 +16,6 @@ window.callCryptoProPlugin = function callCryptoProPlugin() {
 window.iterateContainers = function iterateContainers() {
     return new Promise(function (resolve, reject) {
         cadesplugin.async_spawn(function* (args) {
-            debugger;
             try {
                 var oStore = yield cadesplugin.CreateObjectAsync("CAdESCOM.Store");
                 yield oStore.Open(

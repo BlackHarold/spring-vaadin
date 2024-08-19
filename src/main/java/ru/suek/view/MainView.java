@@ -1,10 +1,10 @@
 package ru.suek.view;
 
-import com.itextpdf.text.DocumentException;
-import com.itextpdf.text.Element;
-import com.itextpdf.text.Font;
-import com.itextpdf.text.Phrase;
+import com.itextpdf.text.*;
 import com.itextpdf.text.pdf.*;
+import com.itextpdf.text.pdf.security.ExternalBlankSignatureContainer;
+import com.itextpdf.text.pdf.security.ExternalSignatureContainer;
+import com.itextpdf.text.pdf.security.MakeSignature;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -24,17 +24,30 @@ import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.data.selection.MultiSelect;
 import com.vaadin.flow.router.Route;
+import elemental.json.JsonValue;
 import elemental.json.impl.JreJsonArray;
 import elemental.json.impl.JreJsonObject;
 import elemental.json.impl.JreJsonString;
+import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.bouncycastle.crypto.tls.HashAlgorithm;
+import org.bouncycastle.jcajce.provider.asymmetric.GOST;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import ru.CryptoPro.JCP.ASN.GostR3411_2012_DigestSyntax.GostR3411_2012_256_Digest;
 import ru.CryptoPro.JCP.JCP;
+import ru.CryptoPro.JCP.Patch.Gost2001DateProvider;
+import ru.CryptoPro.JCP.tools.Decoder;
 import ru.CryptoPro.JCSP.JCSP;
 import ru.suek.model.FileDTO;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.Certificate;
@@ -42,6 +55,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -315,12 +329,13 @@ public class MainView extends VerticalLayout {
 
                 selection.getValue().forEach(fileDTO -> {
                     //формируем ссылки на исходный файл и подписанный
-                    String rootPath = Paths.get(fileDTO.getPath()).toUri().getPath();
+                    Path rootPaths = Paths.get(fileDTO.getPath());
+                    String rootPath = rootPaths.toUri().getPath();
                     System.out.println("rootPath: " + rootPath);
                     String outputPath = rootPath
                             .replaceAll("/PDF/", "/PDF/SIGNED/")
                             .replaceAll("\\.pdf", "_signed.pdf");
-                    String outputP7SPath = outputPath + ".p7s";
+                    String outputP7SPath = outputPath + ".pdf";
 
                     StringBuilder stampText = new StringBuilder();
                     this.getElement().executeJs("return get_cert_info($0, $1)", /*sha1*/ certId, /*options*/ null)
@@ -341,34 +356,59 @@ public class MainView extends VerticalLayout {
                                 String validToDate = object.getString("ValidToDate");
                                 System.out.println("validToDate: " + validToDate);
 
-                                //Извлечение даты
-                                LocalDate fromDate = LocalDate.parse(validFromDate.substring(0, 10));
-                                LocalDate toDate = LocalDate.parse(validToDate.substring(0, 10));
-
-                                //Форматирование даты в нужном формате
-                                String formattedFromDate = fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-                                String formattedToDate = toDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-
-                                //Рисование рамки штампа (ГОСТ Р 7.0.97-2016)
-                                stampText
-                                        .append("Документ подписан электронной подписью").append("\n")
-                                        .append("Сертификат: ").append(thumbprint).append("\n")
-                                        .append("Владелец: ").append(subject.get("CN")).append("\n")
-                                        .append("Действителен: ")
-                                        .append("c ").append(formattedFromDate)
-                                        .append(" по ").append(formattedToDate).append("\n");
-                                System.out.println("stamp text: \n\t" + stampText);
-
-                                System.out.println("try to sign pdf");
-                                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                //Определяем алгоритм
+                                String algorithm = getAlgorithm(oInfo);
+                                System.out.println("got algorithm: " + algorithm);
+                                MessageDigest md;
                                 try {
+                                    if (algorithm.contains("2012") && algorithm.contains("256")) {
+                                        md = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_256_NAME);
+                                    } else if (algorithm.contains("2012") && algorithm.contains("512")) {
+                                        md = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_512_NAME);
+                                    } else {
+                                        md = MessageDigest.getInstance(JCP.GOST_DIGEST_NAME);
+                                    }
+                                } catch (NoSuchAlgorithmException e) {
+                                    throw new RuntimeException(e);
+                                }
+
+                                /*generate stampText value*/
+                                getStampText(oInfo, stampText);
+                                StringBuilder hexString = new StringBuilder();
+                                try {
+                                    byte[] fileBytes = Files.readAllBytes(rootPaths);
+                                    // Создание объекта MessageDigest для SHA-256
+                                    // Вычисление хеша
+                                    byte[] hash = md.digest(fileBytes);
+                                    // Преобразование хеша в шестнадцатеричную строку
+                                    for (byte b : hash) {
+                                        String hex = Integer.toHexString(0xff & b);
+                                        if (hex.length() == 1) hexString.append('0');
+                                        hexString.append(hex);
+                                    }
+                                    System.out.println("Хеш документа на подпись: " + hexString);
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
+
+                                StringBuilder hashResult = new StringBuilder();
+
+                                //На клиенте подписываем hash от сервера
+                                this.getElement().executeJs("return signHash($0, $1)", hexString.toString(), certId).then(
+                                        result -> {
+                                            if (result instanceof JreJsonString) {
+                                                hashResult.append(result.asString());
+                                                System.out.println("Результат подписи хеша файла:\n" + hashResult);
+                                            }
+                                        }
+                                );
+
+                                try (FileOutputStream fos = new FileOutputStream(outputPath);) {
+                                    PdfReader reader = new PdfReader(rootPath);
+                                    PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0');
+
                                     String[] lines = stampText.toString().split("\n");
                                     System.out.println("lines: " + lines.length);
-
-                                    PdfReader reader = new PdfReader(rootPath);
-//                                            PdfStamper stamper = new PdfStamper(reader, fos);
-                                    PdfStamper stamper = new PdfStamper(reader, baos);
-
                                     BaseFont bf = BaseFont.createFont("./resources/fonts/FreeSans.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
                                     Font font = new Font(bf, 10);
 
@@ -384,7 +424,6 @@ public class MainView extends VerticalLayout {
                                     float x = pageWidth - width - padding * 2; //Положение по X
                                     float y = 50; //Положение по Y
                                     float height = lines.length * (font.getSize() + 2); //Высота рамки
-//
 
                                     content.setLineWidth(1);
                                     content.rectangle(x - padding, y - padding, width + padding * 2, height + padding * 2);
@@ -401,52 +440,42 @@ public class MainView extends VerticalLayout {
                                         y -= font.getSize() + 2;
                                     }
 
-                                    //Закрытие объектов PdfStamper и PdfReader
+                                    PdfSignatureAppearance appearance = stamper.getSignatureAppearance();
+                                    appearance.setVisibleSignature(new Rectangle(x - padding, y - padding, width + padding * 2, height + padding * 2), 1, "sig");
+//                                    ExternalSignatureContainer external = new ExternalBlankSignatureContainer(PdfName.ADOBE_CryptoProPDF, PdfName.ADBE_PKCS7_DETACHED);
+                                    ExternalSignatureContainer external = new ExternalBlankSignatureContainer(PdfName.ADOBE_PPKLITE, PdfName.ADBE_PKCS7_DETACHED);
+//                                    MakeSignature.signDeferred(reader, "sig", fos, external);
+                                    MakeSignature.signExternalContainer(appearance, external, 8192);
+                                    byte[] data = IOUtils.toByteArray(appearance.getRangeStream());
+//                                    MessageDigest md = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_256_NAME);
+                                    md.update(data);
+                                    byte[] fileDigest = md.digest();
+                                    System.out.println("encoded hex: " + Hex.encodeHexString(fileDigest));
+
                                     stamper.close();
                                     reader.close();
-                                    System.out.println("Фвйл сохранен в путь " + outputPath);
-                                } catch (DocumentException | IOException e) {
-                                    System.err.println("Exception: " + e.getMessage());
+                                } catch (IOException | DocumentException | GeneralSecurityException e) {
+                                    System.err.println("exception ! ! " + ExceptionUtils.getMessage(e));
                                     throw new RuntimeException(e);
                                 }
 
-                                byte[] fileData = baos.toByteArray();
-                                String base64String = Base64.getEncoder().encodeToString(fileData);
+                                //Подписываем документ подписью
+                                try (FileOutputStream fos = new FileOutputStream(outputP7SPath)) {
+                                    PdfReader reader = new PdfReader(outputPath);
+                                    String sign64 = hashResult.toString();
+                                    Decoder decoder = new Decoder();
+                                    byte[] sign = decoder.decodeBuffer(sign64);
+                                    ExternalSignatureContainer external = new MyExternalSignatureContainer(sign);
+                                    MakeSignature.signDeferred(reader, "sig", fos, external);
 
-                                //TODO выполняем javascript запрос подписания 'cadesplugin' по его certId
-                                // (crypto_plugin.signData(fileData, certId, options(attached?, pin?))
-                                System.out.println("before sign size: " + base64String.length());
-
-                                //check base64
-                                boolean isEquals = Arrays.equals(Base64.getDecoder().decode(base64String), fileData);
-                                System.out.println("isEquals: " + isEquals);
-//                            this.getElement().executeJs("return signData($0, $1, $2)",
-                                this.getElement().executeJs("return createSign($0, $1)",
-                                                base64String/*file as blob*/, certId)
-                                        .then(result -> {
-                                                    if (result instanceof JreJsonString) {
-                                                        JreJsonString jreJsonString = (JreJsonString) result;
-                                                        String base64Pdf = jreJsonString.asString();
-                                                        base64Pdf = base64Pdf.replaceAll("[^A-Za-z0-9+/=]", "");
-
-                                                        System.out.println("after sign size: " + base64Pdf.length());
-                                                        byte[] pdfBytes = Base64.getDecoder().decode(base64Pdf);
-
-                                                        try (FileOutputStream fos = new FileOutputStream(outputP7SPath)) {
-                                                            fos.write(pdfBytes);
-                                                            fos.flush();
-                                                            System.out.println(outputPath + " -> file saved!");
-                                                        } catch (FileNotFoundException e) {
-                                                            throw new RuntimeException(e);
-                                                        } catch (IOException e) {
-                                                            throw new RuntimeException(e);
-                                                        }
-                                                    }
-                                                }
-                                        );
+                                    reader.close();
+                                } catch (Exception e) {
+                                    System.out.println("exception ! ! " + ExceptionUtils.getMessage(e));
+                                    throw new RuntimeException(e);
+                                }
                             });
-                    dialog.close();
                 });
+                dialog.close();
             }
         });
 
@@ -457,6 +486,93 @@ public class MainView extends VerticalLayout {
         //group layouts
         dialog.add(cancelLayout, approveLayout);
         dialog.open();
+    }
+
+    private String getAlgorithm(JsonValue oInfo) {
+        JreJsonObject jsonObject = (JreJsonObject) oInfo;
+        System.out.println("oInfo: " + oInfo);
+        JSONObject mainObject = new JSONObject(jsonObject);
+        System.out.println("main object: " + mainObject);
+        JSONObject object = mainObject.getJSONObject("object");
+        String algorithm = object.getString("Algorithm");
+        System.out.println("algorithm: " + algorithm);
+        return algorithm;
+    }
+
+    private void getAppreranceText(JsonValue oInfo, PdfSignatureAppearance appearance) {
+        JreJsonObject jsonObject = (JreJsonObject) oInfo;
+        System.out.println("oInfo: " + oInfo);
+        JSONObject mainObject = new JSONObject(jsonObject);
+        System.out.println("main object: " + mainObject);
+        JSONObject object = mainObject.getJSONObject("object");
+        JSONObject issuer = object.optJSONObject("Issuer");
+        System.out.println("issuer: " + issuer);
+        JSONObject subject = object.optJSONObject("Subject");
+        System.out.println("subject: " + subject);
+        String thumbprint = object.getString("Thumbprint");
+        System.out.println("thumbprint: " + thumbprint);
+        String validFromDate = object.getString("ValidFromDate");
+        System.out.println("validFromDate: " + validFromDate);
+        String validToDate = object.getString("ValidToDate");
+        System.out.println("validToDate: " + validToDate);
+
+        //Извлечение даты
+        LocalDate fromDate = LocalDate.parse(validFromDate.substring(0, 10));
+        LocalDate toDate = LocalDate.parse(validToDate.substring(0, 10));
+
+        //Форматирование даты в нужном формате
+        String formattedFromDate = fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String formattedToDate = toDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+        //Рисование рамки штампа (ГОСТ Р 7.0.97-2016)
+        appearance.setReason("Документ подписан электронной подписью");
+        appearance.setSignatureCreator(subject.get("CN").toString());
+//        stampText
+//                .append("Документ подписан электронной подписью").append("\n")
+//                .append("Сертификат: ").append(thumbprint).append("\n")
+//                .append("Владелец: ").append(subject.get("CN")).append("\n")
+//                .append("Действителен: ")
+//                .append("c ").append(formattedFromDate)
+//                .append(" по ").append(formattedToDate).append("\n");
+//        System.out.println("stamp text: \n\t" + stampText);
+    }
+
+    private void getStampText(JsonValue oInfo, StringBuilder stampText) {
+        JreJsonObject jsonObject = (JreJsonObject) oInfo;
+        System.out.println("oInfo: " + oInfo);
+        JSONObject mainObject = new JSONObject(jsonObject);
+        System.out.println("main object: " + mainObject);
+        JSONObject object = mainObject.getJSONObject("object");
+        JSONObject issuer = object.optJSONObject("Issuer");
+        System.out.println("issuer: " + issuer);
+        JSONObject subject = object.optJSONObject("Subject");
+        System.out.println("subject: " + subject);
+        String thumbprint = object.getString("Thumbprint");
+        System.out.println("thumbprint: " + thumbprint);
+        String algorithm = object.getString("Algorithm");
+        System.out.println("algorithm: " + algorithm);
+        String validFromDate = object.getString("ValidFromDate");
+        System.out.println("validFromDate: " + validFromDate);
+        String validToDate = object.getString("ValidToDate");
+        System.out.println("validToDate: " + validToDate);
+
+        //Извлечение даты
+        LocalDate fromDate = LocalDate.parse(validFromDate.substring(0, 10));
+        LocalDate toDate = LocalDate.parse(validToDate.substring(0, 10));
+
+        //Форматирование даты в нужном формате
+        String formattedFromDate = fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String formattedToDate = toDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+        //Рисование рамки штампа (ГОСТ Р 7.0.97-2016)
+        stampText
+                .append("Документ подписан электронной подписью").append("\n")
+                .append("Сертификат: ").append(thumbprint).append("\n")
+                .append("Владелец: ").append(subject.get("CN")).append("\n")
+                .append("Действителен: ")
+                .append("c ").append(formattedFromDate)
+                .append(" по ").append(formattedToDate).append("\n");
+        System.out.println("stamp text: \n\t" + stampText);
     }
 
     private boolean isPdfHeader(String header) {
@@ -541,5 +657,23 @@ public class MainView extends VerticalLayout {
         grid.setSelectionMode(Grid.SelectionMode.MULTI);
 
         return grid;
+    }
+}
+
+class MyExternalSignatureContainer implements ExternalSignatureContainer {
+    private final byte[] signedHash;
+
+    public MyExternalSignatureContainer(byte[] signedHash) {
+        this.signedHash = signedHash;
+    }
+
+    @Override
+    public byte[] sign(InputStream inputStream) throws GeneralSecurityException {
+        return new byte[0];
+    }
+
+    @Override
+    public void modifySigningDictionary(PdfDictionary pdfDictionary) {
+
     }
 }

@@ -321,117 +321,116 @@ window.getCertificate = function (certThumbprint, pin) {
  * @param {boolean} [options.checkValid] проверять валидность сертификата через СКЗИ, а не сроку действия
  * @returns {Promise<Object>}
  */
-window.get_cert_info = function(certThumbprint, options){
-        if (!options) options = {
-            checkValid: true
-        };
-
-        const infoToString = function () {
-            return    'Название:              ' + this.Name +
-                '\nИздатель:              ' + this.IssuerName +
-                '\nСубъект:               ' + this.SubjectName +
-                '\nВерсия:                ' + this.Version +
-                '\nАлгоритм:              ' + this.Algorithm + // PublicKey Algorithm
-                '\nСерийный №:            ' + this.SerialNumber +
-                '\nОтпечаток SHA1:        ' + this.Thumbprint +
-                '\nНе действителен до:    ' + this.ValidFromDate +
-                '\nНе действителен после: ' + this.ValidToDate +
-                '\nПриватный ключ:        ' + (this.HasPrivateKey ? 'Есть' : 'Нет') +
-                '\nКриптопровайдер:       ' + this.ProviderName + // PrivateKey ProviderName
-                '\nВалидный:              ' + (this.IsValid ? 'Да' : 'Нет');
-        };
-
-        if(canAsync) {
-            let oInfo = {};
-            return getCertificateObject(certThumbprint)
-                .then(oCertificate => Promise.all([
-                    oCertificate.HasPrivateKey(),
-                    options.checkValid ? oCertificate.IsValid().then(v => v.Result) : undefined,
-                    oCertificate.IssuerName,
-                    oCertificate.SerialNumber,
-                    oCertificate.SubjectName,
-                    oCertificate.Thumbprint,
-                    oCertificate.ValidFromDate,
-                    oCertificate.ValidToDate,
-                    oCertificate.Version,
-                    oCertificate.PublicKey().then(k => k.Algorithm).then(a => a.FriendlyName),
-                    oCertificate.HasPrivateKey().then(key => !key && ['', undefined] || oCertificate.PrivateKey.then(k => Promise.all([
-                        k.ProviderName, k.ProviderType
-                    ])))
-                ]))
-                .then(a => {
-                    oInfo = {
-                        HasPrivateKey: a[0],
-                        IsValid: a[1],
-                        IssuerName: a[2],
-                        Issuer: undefined,
-                        SerialNumber: a[3],
-                        SubjectName: a[4],
-                        Subject: undefined,
-                        Name: undefined,
-                        Thumbprint: a[5],
-                        ValidFromDate: new Date(a[6]),
-                        ValidToDate: new Date(a[7]),
-                        Version: a[8],
-                        Algorithm: a[9],
-                        ProviderName: a[10][0],
-                        ProviderType: a[10][1]
-                    };
-                    oInfo.Subject = string2dn(oInfo.SubjectName);
-                    oInfo.Issuer  = string2dn(oInfo.IssuerName);
-                    oInfo.Name = oInfo.Subject['CN'];
-                    if (!options.checkValid) {
-                        const dt = new Date();
-                        oInfo.IsValid = dt >= oInfo.ValidFromDate && dt <= oInfo.ValidToDate;
-                    }
-                    oInfo.toString = infoToString;
-
-                    console.log("oInfo ", oInfo);
-                    return oInfo;
-                })
-                .catch(e => {
-                    const err = getError(e);
-                    throw new Error(err);
-                });
-        }
-        else {
-            return new Promise(resolve => {
-                try {
-                    const oCertificate = getCertificateObject(certThumbprint);
-                    const hasKey = oCertificate.HasPrivateKey();
-                    const oParesedSubj = string2dn(oCertificate.SubjectName);
-                    const oInfo = {
-                        HasPrivateKey: hasKey,
-                        IsValid: options.checkValid ? oCertificate.IsValid().Result : undefined,
-                        IssuerName: oCertificate.IssuerName,
-                        Issuer: string2dn(oCertificate.IssuerName),
-                        SerialNumber: oCertificate.SerialNumber,
-                        SubjectName: oCertificate.SubjectName,
-                        Subject: oParesedSubj,
-                        Name: oParesedSubj['CN'],
-                        Thumbprint: oCertificate.Thumbprint,
-                        ValidFromDate: new Date(oCertificate.ValidFromDate),
-                        ValidToDate: new Date(oCertificate.ValidToDate),
-                        Version: oCertificate.Version,
-                        Algorithm: oCertificate.PublicKey().Algorithm.FriendlyName,
-                        ProviderName: hasKey && oCertificate.PrivateKey.ProviderName || '',
-                        ProviderType: hasKey && oCertificate.PrivateKey.ProviderType || undefined,
-                    };
-                    if (!options.checkValid) {
-                        const dt = new Date();
-                        oInfo.IsValid = dt >= oInfo.ValidFromDate && dt <= oInfo.ValidToDate;
-                    }
-                    oInfo.toString = infoToString;
-                    console.log("infoToString ", infoToString);
-                    resolve(oInfo);
-                }
-                catch (e) {
-                    const err = getError(e);
-                    throw new Error(err);
-                }
-            });
-        }
+window.get_cert_info = function (certThumbprint, options) {
+    if (!options) options = {
+        checkValid: true
     };
+
+    const infoToString = function () {
+        return 'Название:              ' + this.Name +
+            '\nИздатель:              ' + this.IssuerName +
+            '\nСубъект:               ' + this.SubjectName +
+            '\nВерсия:                ' + this.Version +
+            '\nАлгоритм:              ' + this.Algorithm + // PublicKey Algorithm
+            '\nСерийный №:            ' + this.SerialNumber +
+            '\nОтпечаток SHA1:        ' + this.Thumbprint +
+            '\nНе действителен до:    ' + this.ValidFromDate +
+            '\nНе действителен после: ' + this.ValidToDate +
+            '\nПриватный ключ:        ' + (this.HasPrivateKey ? 'Есть' : 'Нет') +
+            '\nАлгоритм:              ' + this.Algorithm +
+            '\nКриптопровайдер:       ' + this.ProviderName + // PrivateKey ProviderName
+            '\nВалидный:              ' + (this.IsValid ? 'Да' : 'Нет');
+    };
+
+    if (canAsync) {
+        let oInfo = {};
+        return getCertificateObject(certThumbprint)
+            .then(oCertificate => Promise.all([
+                oCertificate.HasPrivateKey(),
+                options.checkValid ? oCertificate.IsValid().then(v => v.Result) : undefined,
+                oCertificate.IssuerName,
+                oCertificate.SerialNumber,
+                oCertificate.SubjectName,
+                oCertificate.Thumbprint,
+                oCertificate.ValidFromDate,
+                oCertificate.ValidToDate,
+                oCertificate.Version,
+                oCertificate.PublicKey().then(k => k.Algorithm).then(a => a.FriendlyName),
+                oCertificate.HasPrivateKey().then(key => !key && ['', undefined] || oCertificate.PrivateKey.then(k => Promise.all([
+                    k.ProviderName, k.ProviderType
+                ])))
+            ]))
+            .then(a => {
+                oInfo = {
+                    HasPrivateKey: a[0],
+                    IsValid: a[1],
+                    IssuerName: a[2],
+                    Issuer: undefined,
+                    SerialNumber: a[3],
+                    SubjectName: a[4],
+                    Subject: undefined,
+                    Name: undefined,
+                    Thumbprint: a[5],
+                    ValidFromDate: new Date(a[6]),
+                    ValidToDate: new Date(a[7]),
+                    Version: a[8],
+                    Algorithm: a[9],
+                    ProviderName: a[10][0],
+                    ProviderType: a[10][1]
+                };
+                oInfo.Subject = string2dn(oInfo.SubjectName);
+                oInfo.Issuer = string2dn(oInfo.IssuerName);
+                oInfo.Name = oInfo.Subject['CN'];
+                if (!options.checkValid) {
+                    const dt = new Date();
+                    oInfo.IsValid = dt >= oInfo.ValidFromDate && dt <= oInfo.ValidToDate;
+                }
+                oInfo.toString = infoToString;
+
+                console.log("oInfo ", oInfo);
+                return oInfo;
+            })
+            .catch(e => {
+                const err = getError(e);
+                throw new Error(err);
+            });
+    } else {
+        return new Promise(resolve => {
+            try {
+                const oCertificate = getCertificateObject(certThumbprint);
+                const hasKey = oCertificate.HasPrivateKey();
+                const oParsedSubj = string2dn(oCertificate.SubjectName);
+                const oInfo = {
+                    HasPrivateKey: hasKey,
+                    IsValid: options.checkValid ? oCertificate.IsValid().Result : undefined,
+                    IssuerName: oCertificate.IssuerName,
+                    Issuer: string2dn(oCertificate.IssuerName),
+                    SerialNumber: oCertificate.SerialNumber,
+                    SubjectName: oCertificate.SubjectName,
+                    Subject: oParsedSubj,
+                    Name: oParsedSubj['CN'],
+                    Thumbprint: oCertificate.Thumbprint,
+                    ValidFromDate: new Date(oCertificate.ValidFromDate),
+                    ValidToDate: new Date(oCertificate.ValidToDate),
+                    Version: oCertificate.Version,
+                    Algorithm: oCertificate.PublicKey().Algorithm.FriendlyName,
+                    ProviderName: hasKey && oCertificate.PrivateKey.ProviderName || '',
+                    ProviderType: hasKey && oCertificate.PrivateKey.ProviderType || undefined,
+                };
+                if (!options.checkValid) {
+                    const dt = new Date();
+                    oInfo.IsValid = dt >= oInfo.ValidFromDate && dt <= oInfo.ValidToDate;
+                }
+                oInfo.toString = infoToString;
+                console.log("infoToString ", infoToString);
+                resolve(oInfo);
+            } catch (e) {
+                const err = getError(e);
+                throw new Error(err);
+            }
+        });
+    }
+};
 
 function getCertificateObject(certThumbprint, pin) {
     if (canAsync) {
