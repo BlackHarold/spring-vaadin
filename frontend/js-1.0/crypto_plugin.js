@@ -3,16 +3,16 @@ let pluginVersion = '';
 let signerOptions = 0;
 
 window.oAbout = async function () {
-    var oAbout = cadesplugin.CreateObjectAsync("CAdESCOM.About");
-    console.log("oAbout ", oAbout);
+    pluginVersion = await cadesplugin
+        .then(() => {
+            return cadesplugin.CreateObjectAsync("CAdESCOM.About")
+        }).then(about => {
+            return about.Version;
+        });
 
-    pluginVersion = await oAbout.then((about) => {
-        return about.Version;
-    });
-    console.log("pluginVersion ", pluginVersion);
-
+    console.log("pluginVersion: ", pluginVersion);
     return pluginVersion;
-};
+}
 
 window.certList = function run() {
     // Проверка на наличие cadesplugin
@@ -25,7 +25,7 @@ window.certList = function run() {
     console.log("canAsync " + canAsync);
     signerOptions = cadesplugin.CAPICOM_CERTIFICATE_INCLUDE_END_ENTITY_ONLY;
 
-    let oStore, ret;
+    let oStore;
     if (canAsync) {
         return cadesplugin.then(function () {
             return cadesplugin.CreateObjectAsync("CAPICOM.Store");
@@ -35,24 +35,19 @@ window.certList = function run() {
                 cadesplugin.CAPICOM_MY_STORE,
                 cadesplugin.CAPICOM_STORE_OPEN_MAXIMUM_ALLOWED);
         }).then(() => {
-            console.log("type of ", typeof oStore.Open);
-            ret = fetchCertsFromStore(oStore);
-            console.log("ret: ", ret);
             return fetchCertsFromStore(oStore);
         });
     }
-
-    #certificatesSelect
-    return ret;
 }
 
 function fetchCertsFromStore(oStore, skipIds = []) {
     if (canAsync) {
         let oCertificates;
-        return oStore.Certificates.then(certificates => {
-            oCertificates = certificates;
-            return certificates.Count;
+        return oStore.Certificates.then(async certificates => {
+            oCertificates = await certificates.Find(cadesplugin.CAPICOM_CERTIFICATE_FIND_TIME_VALID);
+            return oCertificates.Count;
         }).then(count => {
+            console.log("certificates count: ", count);
             const certs = [];
             for (let i = 1; i <= count; i++) certs.push(oCertificates.Item(i));
             return Promise.all(certs);
@@ -321,7 +316,7 @@ window.getCertificate = function (certThumbprint, pin) {
  * @param {boolean} [options.checkValid] проверять валидность сертификата через СКЗИ, а не сроку действия
  * @returns {Promise<Object>}
  */
-window.get_cert_info = function (certThumbprint, options) {
+window.getCertInfo = function (certThumbprint, options) {
     if (!options) options = {
         checkValid: true
     };

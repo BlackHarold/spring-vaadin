@@ -1,5 +1,5 @@
 window.signHash = async function (hashBase64OrHex, selectedCertID) {
-    var hash = hashBase64OrHex;
+    // var hash = hashBase64OrHex;
 
     // Получаю нужный сертификат
     var thumbprint = selectedCertID;
@@ -25,28 +25,36 @@ window.signHash = async function (hashBase64OrHex, selectedCertID) {
         let algorithmValue = await certAlgorithm.Value;
         let hashAlgorithm;
 
+        // Создаем объект CAdESCOM.HashedData
+        var oHashObject = await cadesplugin.CreateObjectAsync("CAdESCOM.HashedData");
         //определяем алгоритм подписания по данным из сертификата и получаем алгоритм хеширования
         if (algorithmValue === "1.2.643.7.1.1.1.1") {
             hashAlgorithm = "2012256";
+            oHashObject.propset_Algorithm(cadesplugin.CADESCOM_HASH_ALGORITHM_CP_GOST_3411_2012_256);
         } else if (algorithmValue === "1.2.643.7.1.1.1.2") {
             hashAlgorithm = "2012512";
+            oHashObject.propset_Algorithm(cadesplugin.CADESCOM_HASH_ALGORITHM_CP_GOST_3411_2012_512);
         } else if (algorithmValue === "1.2.643.2.2.19") {
             hashAlgorithm = "3411";
+            oHashObject.propset_Algorithm(cadesplugin.CADESCOM_HASH_ALGORITHM_CP_GOST_3411);
         } else {
             alert("Реализуемый алгоритм не подходит для подписания документа.");
             return;
         }
         console.log("algorithm!!!: ", hashAlgorithm);
+        await oHashObject.SetHashValue(hashBase64OrHex);
+        console.log("set hash value!!!");
 
         //Создание объекта для подписанных данных
         var oSignedData = await cadesplugin.CreateObjectAsync("CAdESCOM.CadesSignedData");
-        console.log("oSignedData ", oSignedData);
+        // oSignedData.propset_ContentEncoding(cadesplugin.CADESCOM_BASE64_TO_BINARY);
+        // console.log("oSignedData ", oSignedData);
         //Установка кодитровки содержимого
         // await oSignedData.propset_ContentEncoding(cadesplugin.CADESCOM_BASE64_TO_BINARY);
         //Установка содержимого PDF для подписи
-        console.log("set hash!!!: ", hash)
-        await oSignedData.propset_Content(hash);
-        console.log("set content data sign!!!")
+        // console.log("set hash!!!: ", hashBase64OrHex);
+        // await oSignedData.propset_Content(hashBase64OrHex);
+        // console.log("set content data sign!!!")
 
         //Получаю подписчика
         try {
@@ -59,15 +67,37 @@ window.signHash = async function (hashBase64OrHex, selectedCertID) {
         }
 
         //Подписание данных
-        var signedMessage = await oSignedData.SignCades(oSigner, cadesplugin.CADESCOM_CADES_BES, /*detached*/ true);
-        console.log("signedMessage: ", signedMessage);
+        // var signedMessage = await oSignedData.SignCades(oSigner, cadesplugin.CADESCOM_CADES_BES, /*detached*/ true);
+        var sSignedMessage = await oSignedData.SignHash(oHashObject, oSigner, cadesplugin.CADESCOM_CADES_BES);
+        console.log("signedMessage: ", sSignedMessage);
 
-        return signedMessage;
+        var verifyResult = await VerifySignature(oHashObject, sSignedMessage);
+        if (verifyResult) {
+            alert("Signature verified");
+        }
+
+
+        return sSignedMessage;
     } catch (err) {
         console.log("exception!!! ", err);
         alert('Exception found');
         throw "Failed to signed given hash: " + err;
     }
+}
+
+async function VerifySignature(oHashedData, sSignedMessage) {
+    // Создаем объект CAdESCOM.CadesSignedData
+    var oSignedData = await cadesplugin.CreateObjectAsync("CAdESCOM.CadesSignedData");
+
+    // Проверяем подпись
+    try {
+        await oSignedData.VerifyHash(oHashedData, sSignedMessage, cadesplugin.CADESCOM_CADES_BES);
+    } catch (err) {
+        alert("Failed to verify signature. Error: " + cadesplugin.getLastError(err));
+        return false;
+    }
+
+    return true;
 }
 
 window.createSign = async function (dataToSign, selectedCertID) {
