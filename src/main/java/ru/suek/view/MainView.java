@@ -1,11 +1,12 @@
 package ru.suek.view;
 
-import com.itextpdf.text.*;
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.Font;
+import com.itextpdf.text.Rectangle;
 import com.itextpdf.text.pdf.*;
 import com.itextpdf.text.pdf.security.ExternalBlankSignatureContainer;
 import com.itextpdf.text.pdf.security.ExternalSignatureContainer;
 import com.itextpdf.text.pdf.security.MakeSignature;
-import com.itextpdf.text.pdf.security.PdfPKCS7;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -29,7 +30,6 @@ import elemental.json.JsonValue;
 import elemental.json.impl.JreJsonArray;
 import elemental.json.impl.JreJsonObject;
 import elemental.json.impl.JreJsonString;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -46,7 +46,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.*;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -336,10 +335,18 @@ public class MainView extends VerticalLayout {
                             .then(oInfo -> {
                                 //Определяем алгоритм
                                 String algorithm = getAlgorithm(oInfo);
+                                String reason = "Документ подписан электронной подписью";
+                                String location = getLocation(oInfo);
+                                String contact = getContact(oInfo);
                                 System.out.println("got algorithm: " + algorithm);
                                 try (FileOutputStream fos = new FileOutputStream(stampedPath)) {
                                     PdfReader reader = new PdfReader(rootPath);
                                     PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0');
+
+                                    //Определяем стиль шрифта с поддержкой кириллицы и содержимое подписи
+                                    BaseFont bf = BaseFont.createFont("./resources/fonts/FreeSans.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                                    Font font = new Font(bf, 12);
+                                    StringBuilder stampText = getStampTextBuilder(oInfo);
 
                                     float padding = 10;
                                     //Определение координат для рамки
@@ -348,16 +355,15 @@ public class MainView extends VerticalLayout {
                                     System.out.println("page width: " + pageWidth);
                                     float width = pageWidth / 2 + padding * 2; //Ширина рамки
                                     float x = pageWidth - width - padding * 2; //Положение по X
-                                    float height = 12 * 4 * 2; //Высота рамки
+                                    float height = font.getSize() * 4 * 2; //Высота рамки
                                     float y = height + padding * 2; //Положение по Y
 
                                     PdfSignatureAppearance appearance = stamper.getSignatureAppearance();
+                                    appearance.setReason(reason);
+                                    appearance.setLocation(location);
+                                    appearance.setContact(contact);
                                     appearance.setVisibleSignature(new Rectangle(x, y, x + width + padding * 2, y + height + padding * 2), 1, "signatureField");
-
-                                    BaseFont bf = BaseFont.createFont("./resources/fonts/FreeSans.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
-                                    Font font = new Font(bf, 10);
                                     appearance.setLayer2Font(font);
-                                    StringBuilder stampText = getStampTextBuilder(oInfo);
                                     appearance.setLayer2Text(stampText.toString());
                                     ExternalSignatureContainer external = new ExternalBlankSignatureContainer(PdfName.ADOBE_PPKLITE, PdfName.ADBE_PKCS7_DETACHED);
                                     MakeSignature.signExternalContainer(appearance, external, 8192);
@@ -406,49 +412,35 @@ public class MainView extends VerticalLayout {
                                     //На клиенте подписываем hash от сервера
                                     this.getElement().executeJs("return signHash($0, $1)", hexString.toString(), certId)
                                             .then(
-                                            result -> {
-                                                if (result instanceof JreJsonString) {
-                                                    hashResult.append(result.asString());
-                                                    System.out.println("Результат подписи хеша файла:\n" + hashResult);
-                                                }
+                                                    result -> {
+                                                        if (result instanceof JreJsonString) {
+                                                            String base64Pdf = result.asString();
+                                                            base64Pdf = base64Pdf.replaceAll("[^A-Za-z0-9+/=]", "");
 
+                                                            System.out.println("after sign size: " + base64Pdf.length());
+                                                            hashResult.append(base64Pdf);
+                                                            System.out.println("Результат подписи хеша файла:\n" + hashResult);
+                                                        }
 
-                                                try (FileOutputStream fos = new FileOutputStream(outputPath)) {
-                                                    PdfReader reader = new PdfReader(stampedPath);
-                                                    PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0');
+                                                        try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+                                                            PdfReader reader = new PdfReader(stampedPath);
+                                                            PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0');
 
-                                                    float padding = 10;
-                                                    //Определение координат для рамки
-                                                    //Получение ширины страницы
-                                                    float pageWidth = reader.getPageSize(1).getWidth();
-                                                    System.out.println("page width: " + pageWidth);
-                                                    float width = pageWidth / 2 + padding * 2; //Ширина рамки
-                                                    float x = pageWidth - width - padding * 2; //Положение по X
-                                                    float height = 12 * 4 * 2; //Высота рамки
-                                                    float y = height + padding * 2; //Положение по Y
+                                                            byte[] decodeBytes = Base64.getDecoder().decode(hashResult.toString());
 
-                                                    PdfSignatureAppearance appearance = stamper.getSignatureAppearance();
-                                                    appearance.setVisibleSignature(new Rectangle(x, y, x + width + padding * 2, y + height + padding * 2), 1, "signatureField");
+                                                            // Использование внешнего контейнера для подписи
+                                                            ExternalSignatureContainer external = new MyExternalSignatureContainer(decodeBytes);
+                                                            MakeSignature.signDeferred(reader, "signatureField", fos, external);
+                                                            System.out.println("SIGNED!!!: " + outputPath);
 
-                                                    BaseFont bf = BaseFont.createFont("./resources/fonts/FreeSans.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
-                                                    Font font = new Font(bf, 10);
-                                                    appearance.setLayer2Font(font);
-                                                    StringBuilder stampText = getStampTextBuilder(oInfo);
-                                                    appearance.setLayer2Text(stampText.toString());
+                                                            reader.close();
+                                                        } catch (IOException | DocumentException |
+                                                                 GeneralSecurityException e) {
+                                                            System.err.println("exception ! ! " + ExceptionUtils.getMessage(e));
+                                                            throw new RuntimeException(e);
+                                                        }
 
-                                                    // Использование внешнего контейнера для подписи
-                                                    ExternalSignatureContainer external = new MyExternalSignatureContainer(hashResult.toString().getBytes());
-                                                    MakeSignature.signExternalContainer(appearance, external, 8192);
-                                                    System.out.println("SIGNED!!!: " + outputPath);
-
-                                                    stamper.close();
-                                                    reader.close();
-                                                } catch (IOException | DocumentException | GeneralSecurityException e) {
-                                                    System.err.println("exception ! ! " + ExceptionUtils.getMessage(e));
-                                                    throw new RuntimeException(e);
-                                                }
-
-                                            });
+                                                    });
                                 } catch (NoSuchAlgorithmException e) {
                                     throw new RuntimeException(e);
                                 } catch (FileNotFoundException e) {
@@ -473,13 +465,28 @@ public class MainView extends VerticalLayout {
 
     private String getAlgorithm(JsonValue oInfo) {
         JreJsonObject jsonObject = (JreJsonObject) oInfo;
-        System.out.println("oInfo: " + oInfo);
         JSONObject mainObject = new JSONObject(jsonObject);
-        System.out.println("main object: " + mainObject);
         JSONObject object = mainObject.getJSONObject("object");
         String algorithm = object.getString("Algorithm");
-        System.out.println("algorithm: " + algorithm);
         return algorithm;
+    }
+
+    private String getLocation(JsonValue oInfo) {
+        JreJsonObject jsonObject = (JreJsonObject) oInfo;
+        JSONObject mainObject = new JSONObject(jsonObject);
+        JSONObject object = mainObject.getJSONObject("object");
+        JSONObject subject = object.getJSONObject("Subject");
+        System.out.println("subject: " + subject);
+        return subject.getString("L");
+    }
+
+    private String getContact(JsonValue oInfo) {
+        JreJsonObject jsonObject = (JreJsonObject) oInfo;
+        JSONObject mainObject = new JSONObject(jsonObject);
+        JSONObject object = mainObject.getJSONObject("object");
+        JSONObject subject = object.getJSONObject("Subject");
+        System.out.println("subject: " + subject);
+        return subject.getString("E");
     }
 
     private boolean isPdfHeader(String header) {

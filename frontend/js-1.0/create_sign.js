@@ -47,14 +47,6 @@ window.signHash = async function (hashBase64OrHex, selectedCertID) {
 
         //Создание объекта для подписанных данных
         var oSignedData = await cadesplugin.CreateObjectAsync("CAdESCOM.CadesSignedData");
-        // oSignedData.propset_ContentEncoding(cadesplugin.CADESCOM_BASE64_TO_BINARY);
-        // console.log("oSignedData ", oSignedData);
-        //Установка кодитровки содержимого
-        // await oSignedData.propset_ContentEncoding(cadesplugin.CADESCOM_BASE64_TO_BINARY);
-        //Установка содержимого PDF для подписи
-        // console.log("set hash!!!: ", hashBase64OrHex);
-        // await oSignedData.propset_Content(hashBase64OrHex);
-        // console.log("set content data sign!!!")
 
         //Получаю подписчика
         try {
@@ -73,7 +65,7 @@ window.signHash = async function (hashBase64OrHex, selectedCertID) {
 
         var verifyResult = await VerifySignature(oHashObject, sSignedMessage);
         if (verifyResult) {
-            alert("Signature verified");
+            alert("Подпись подтверждена");
         }
 
 
