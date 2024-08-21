@@ -21,7 +21,6 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.data.selection.MultiSelect;
@@ -37,7 +36,10 @@ import ru.CryptoPro.JCP.JCP;
 import ru.CryptoPro.JCSP.JCSP;
 import ru.suek.model.FileDTO;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -90,6 +92,23 @@ public class MainView extends VerticalLayout {
                             comboBox.setItemLabelGenerator(eachCertificate -> eachCertificate.get("name").toString());
                         }
                 );
+
+        comboBox.addValueChangeListener(event -> {
+            JSONObject selectedComboBoxValue = event.getValue();
+            //получаем отпечаток SHA1 (id) сертификата
+            certId = selectedComboBoxValue.get("id").toString();
+            System.out.println("selectedComboBoxValue id: " + certId + " name: " + selectedComboBoxValue.get("name"));
+            this.getElement().executeJs("return getCertInfo($0, $1)", /*sha1*/ certId, /*options*/ null)
+                    .then(oInfo -> {
+                        //Определяем алгоритм
+                        algorithm = getAlgorithm(oInfo);
+                        reason = "Документ подписан электронной подписью";
+                        location = getLocation(oInfo);
+                        contact = getContact(oInfo);
+                        System.out.println("got algorithm: " + algorithm);
+                        stampText = getStampTextBuilder(oInfo);
+                    });
+        });
 
         return comboBox;
     }
@@ -268,6 +287,13 @@ public class MainView extends VerticalLayout {
         return keyStore;
     }
 
+    private String algorithm;
+    private String reason;
+    private String location;
+    private String contact;
+    private StringBuilder stampText;
+    private String certId;
+
     private void showDialog() {
         MultiSelect<Grid<FileDTO>, FileDTO> selection = grid.asMultiSelect();
         Notification.show(selection.getValue().parallelStream().map(FileDTO::getName).collect(Collectors.joining(",")));
@@ -307,144 +333,125 @@ public class MainView extends VerticalLayout {
                 Notification.show("Пожалуйста, выберете сертификат!", 1000, Notification.Position.MIDDLE);
                 comboBox.focus();
             } else {
-                JSONObject selectedComboBoxValue = comboBox.getValue();
-
-                //получаем отпечаток SHA1 (id) сертификата
-                String certId = selectedComboBoxValue.get("id").toString();
-                System.out.println("selectedComboBoxValue id: " + certId + " name: " + selectedComboBoxValue.get("name"));
-
                 selection.getValue().forEach(fileDTO -> {
+                    UUID uuid = UUID.randomUUID();
                     //формируем ссылки на исходный файл и подписанный
                     String rootPath = fileDTO.getPath();
                     System.out.println("rootPath: " + rootPath);
                     String stampedPath = rootPath
                             .replace("\\PDF\\", "/PDF/STAMPED/")
-                            .replaceAll("\\.pdf", "_stamped.pdf");
+                            .replaceAll("\\.pdf", uuid + "_stamped.pdf");
                     System.out.println("stampedPath: " + stampedPath);
                     String outputPath = stampedPath
                             .replaceAll("/PDF/STAMPED/", "/PDF/SIGNED/")
+                            .replaceAll(uuid.toString(), "")
                             .replaceAll("_stamped.pdf", "_signed.pdf");
                     System.out.println("outputPath: " + outputPath);
 
-                    this.getElement().executeJs("return getCertInfo($0, $1)", /*sha1*/ certId, /*options*/ null)
-                            .then(oInfo -> {
-                                //Определяем алгоритм
-                                String algorithm = getAlgorithm(oInfo);
-                                String reason = "Документ подписан электронной подписью";
-                                String location = getLocation(oInfo);
-                                String contact = getContact(oInfo);
-                                System.out.println("got algorithm: " + algorithm);
-                                try (FileOutputStream fos = new FileOutputStream(stampedPath)) {
-                                    PdfReader reader = new PdfReader(rootPath);
-                                    PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0');
+                    try (FileOutputStream fos = new FileOutputStream(stampedPath)) {
+                        PdfReader reader = new PdfReader(rootPath);
+                        PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0');
 
-                                    //Определяем стиль шрифта с поддержкой кириллицы и содержимое подписи
-                                    BaseFont bf = BaseFont.createFont("./resources/fonts/FreeSans.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
-                                    Font font = new Font(bf, 12);
-                                    StringBuilder stampText = getStampTextBuilder(oInfo);
+                        //Определяем стиль шрифта с поддержкой кириллицы и содержимое подписи
+                        BaseFont bf = BaseFont.createFont("./resources/fonts/FreeSans.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                        Font font = new Font(bf, 12);
 
-                                    float padding = 10;
-                                    //Определение координат для рамки
-                                    //Получение ширины страницы
-                                    float pageWidth = reader.getPageSize(1).getWidth();
-                                    System.out.println("page width: " + pageWidth);
-                                    float width = pageWidth / 2 + padding * 2; //Ширина рамки
-                                    float x = pageWidth - width - padding * 2; //Положение по X
-                                    float height = font.getSize() * 4 * 2; //Высота рамки
-                                    float y = height + padding * 2; //Положение по Y
+                        float padding = 10;
+                        //Определение координат для рамки
+                        //Получение ширины страницы
+                        float pageWidth = reader.getPageSize(1).getWidth();
+                        System.out.println("page width: " + pageWidth);
+                        float width = pageWidth / 2 + padding * 2; //Ширина рамки
+                        float x = pageWidth - width - padding * 2; //Положение по X
+                        float height = font.getSize() * 4 * 2; //Высота рамки
+                        float y = height + padding * 2; //Положение по Y
 
-                                    PdfSignatureAppearance appearance = stamper.getSignatureAppearance();
-                                    appearance.setReason(reason);
-                                    appearance.setLocation(location);
-                                    appearance.setContact(contact);
-                                    appearance.setVisibleSignature(new Rectangle(x, y, x + width + padding * 2, y + height + padding * 2), 1, "signatureField");
-                                    appearance.setLayer2Font(font);
-                                    appearance.setLayer2Text(stampText.toString());
-                                    ExternalSignatureContainer external = new ExternalBlankSignatureContainer(PdfName.ADOBE_PPKLITE, PdfName.ADBE_PKCS7_DETACHED);
-                                    MakeSignature.signExternalContainer(appearance, external, 8192);
+                        PdfSignatureAppearance appearance = stamper.getSignatureAppearance();
+                        appearance.setReason(reason);
+                        appearance.setLocation(location);
+                        appearance.setContact(contact);
+                        appearance.setVisibleSignature(new Rectangle(x, y, x + width + padding * 2, y + height + padding * 2), 1, "signatureField");
+                        appearance.setLayer2Font(font);
+                        appearance.setLayer2Text(stampText.toString());
+                        ExternalSignatureContainer external = new ExternalBlankSignatureContainer(PdfName.ADOBE_PPKLITE, PdfName.ADBE_PKCS7_DETACHED);
+                        MakeSignature.signExternalContainer(appearance, external, 8192);
 
-                                    stamper.close();
-                                    reader.close();
-                                } catch (IOException | DocumentException | GeneralSecurityException e) {
-                                    System.err.println("exception ! ! " + ExceptionUtils.getMessage(e));
-                                    throw new RuntimeException(e);
+                        stamper.close();
+                        reader.close();
+                    } catch (IOException | DocumentException | GeneralSecurityException e) {
+                        System.err.println("exception ! ! " + ExceptionUtils.getMessage(e));
+                        throw new RuntimeException(e);
+                    }
+
+                    //Подписываем документ подписью
+                    StringBuilder hexStringBuilder = new StringBuilder();
+                    try {
+                        MessageDigest md;
+                        if (algorithm.contains("2012") && algorithm.contains("256")) {
+                            System.out.println("-> 2012_256");
+
+                            md = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_256_NAME);
+                        } else if (algorithm.contains("2012") && algorithm.contains("512")) {
+                            System.out.println("-> 2012_512");
+                            md = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_512_NAME);
+                        } else {
+                            System.out.println("-> 3411");
+                            md = MessageDigest.getInstance(JCP.GOST_DIGEST_NAME);
+                        }
+
+                        Path path = Paths.get(stampedPath);
+                        byte[] pdfBytes = Files.readAllBytes(path);
+                        md.update(pdfBytes);
+
+
+                        // Вычисление хеша
+                        byte[] fileDigest = md.digest();
+                        // Преобразование хеша в шестнадцатеричную строку
+                        for (byte b : fileDigest) {
+                            String hex = Integer.toHexString(0xff & b);
+                            if (hex.length() == 1) hexStringBuilder.append('0');
+                            hexStringBuilder.append(hex.toUpperCase());
+                        }
+                    } catch (NoSuchAlgorithmException e) {
+                        throw new RuntimeException(e);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    System.out.println("Хеш документа на подпись: " + hexStringBuilder);
+                    System.out.println("Файл сохранен с контейнером на " + stampedPath);
+
+                    //На клиенте подписываем hash от сервера
+                    this.getElement().executeJs("return signHash($0, $1)", hexStringBuilder.toString(), certId)
+                            .then(signedData -> {
+                                String base64Pdf = null;
+                                if (signedData instanceof JreJsonString) {
+                                    base64Pdf = signedData.asString();
+                                    base64Pdf = base64Pdf.replaceAll("[^A-Za-z0-9+/=]", "");
+
+                                    System.out.println("after sign size: " + base64Pdf.length());
+                                    System.out.println("Результат подписи хеша файла:\n" + base64Pdf);
                                 }
 
-                                //Подписываем документ подписью
-                                StringBuilder hashResult = new StringBuilder();
-                                try {
-                                    MessageDigest md;
-                                    if (algorithm.contains("2012") && algorithm.contains("256")) {
-                                        System.out.println("-> 2012_256");
+                                try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+                                    PdfReader reader = new PdfReader(stampedPath);
+                                    byte[] decodedBytes = Base64.getDecoder().decode(base64Pdf.getBytes());
 
-                                        md = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_256_NAME);
-                                    } else if (algorithm.contains("2012") && algorithm.contains("512")) {
-                                        System.out.println("-> 2012_512");
-                                        md = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_512_NAME);
-                                    } else {
-                                        System.out.println("-> 3411");
-                                        md = MessageDigest.getInstance(JCP.GOST_DIGEST_NAME);
-                                    }
+                                    // Использование внешнего контейнера для подписи
+                                    ExternalSignatureContainer external = new MyExternalSignatureContainer(decodedBytes);
+                                    MakeSignature.signDeferred(reader, "signatureField", fos, external);
+                                    System.out.println("Файл подписан и сохранен: " + outputPath);
 
-                                    System.out.println("outputPath: " + stampedPath);
-                                    Path path = Paths.get(stampedPath);
-                                    byte[] pdfBytes = Files.readAllBytes(path);
-                                    md.update(pdfBytes);
-
-                                    StringBuilder hexString = new StringBuilder();
-                                    // Вычисление хеша
-                                    byte[] fileDigest = md.digest();
-                                    // Преобразование хеша в шестнадцатеричную строку
-                                    for (byte b : fileDigest) {
-                                        String hex = Integer.toHexString(0xff & b);
-                                        if (hex.length() == 1) hexString.append('0');
-                                        hexString.append(hex.toUpperCase());
-                                    }
-                                    System.out.println("Хеш документа на подпись: " + hexString);
-                                    System.out.println("сохранен с контейнером на " + stampedPath);
-
-
-                                    //На клиенте подписываем hash от сервера
-                                    this.getElement().executeJs("return signHash($0, $1)", hexString.toString(), certId)
-                                            .then(
-                                                    result -> {
-                                                        if (result instanceof JreJsonString) {
-                                                            String base64Pdf = result.asString();
-                                                            base64Pdf = base64Pdf.replaceAll("[^A-Za-z0-9+/=]", "");
-
-                                                            System.out.println("after sign size: " + base64Pdf.length());
-                                                            hashResult.append(base64Pdf);
-                                                            System.out.println("Результат подписи хеша файла:\n" + hashResult);
-                                                        }
-
-                                                        try (FileOutputStream fos = new FileOutputStream(outputPath)) {
-                                                            PdfReader reader = new PdfReader(stampedPath);
-                                                            PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0');
-
-                                                            byte[] decodeBytes = Base64.getDecoder().decode(hashResult.toString());
-
-                                                            // Использование внешнего контейнера для подписи
-                                                            ExternalSignatureContainer external = new MyExternalSignatureContainer(decodeBytes);
-                                                            MakeSignature.signDeferred(reader, "signatureField", fos, external);
-                                                            System.out.println("SIGNED!!!: " + outputPath);
-
-                                                            reader.close();
-                                                        } catch (IOException | DocumentException |
-                                                                 GeneralSecurityException e) {
-                                                            System.err.println("exception ! ! " + ExceptionUtils.getMessage(e));
-                                                            throw new RuntimeException(e);
-                                                        }
-
-                                                    });
-                                } catch (NoSuchAlgorithmException e) {
-                                    throw new RuntimeException(e);
-                                } catch (FileNotFoundException e) {
-                                    throw new RuntimeException(e);
-                                } catch (IOException e) {
+                                    fos.close();
+                                    reader.close();
+                                } catch (IOException | DocumentException |
+                                         GeneralSecurityException e) {
+                                    System.err.println("exception ! ! " + ExceptionUtils.getMessage(e));
                                     throw new RuntimeException(e);
                                 }
                             });
                 });
+
                 dialog.close();
             }
         });
@@ -456,6 +463,11 @@ public class MainView extends VerticalLayout {
         //group layouts
         dialog.add(cancelLayout, approveLayout);
         dialog.open();
+    }
+
+    private void setAlgorithm(String algorithm) {
+        this.algorithm = algorithm;
+        System.out.println("Алгоритм установлен: " + algorithm);
     }
 
     private String getAlgorithm(JsonValue oInfo) {

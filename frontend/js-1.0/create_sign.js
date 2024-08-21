@@ -42,10 +42,11 @@ window.signHash = async function (hashBase64OrHex, thumbprint) {
         console.log("oSigner!!!: ", oSigner);
         await oSigner.propset_Certificate(certificate);
         await oSigner.propset_CheckCertificate(true);
-        await oSigner.propset_Options(cadesplugin.CAPICOM_CERTIFICATE_INCLUDE_CHAIN_EXCEPT_ROOT);
+        await oSigner.propset_Options(cadesplugin.CAPICOM_CERTIFICATE_INCLUDE_WHOLE_CHAIN);
 
         //Создание объекта для подписанных данных
         var oSignedData = await cadesplugin.CreateObjectAsync("CAdESCOM.CadesSignedData");
+        await oSignedData.propset_ContentEncoding(cadesplugin.CADESCOM_BASE64_TO_BINARY);
 
         //Подписание данных
         // var signedMessage = await oSignedData.SignCades(oSigner, cadesplugin.CADESCOM_CADES_BES, /*detached*/ true);
