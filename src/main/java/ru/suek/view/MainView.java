@@ -61,11 +61,6 @@ public class MainView extends VerticalLayout {
      */
 
     private Grid<FileDTO> grid;
-    private TextField filterField;
-    private Button editButton;
-    private Button deleteButton;
-
-    private List<File> files;
 
     private List<File> getListElements(String directoryPath) {
         File folder = new File(directoryPath);
@@ -208,6 +203,7 @@ public class MainView extends VerticalLayout {
         return toolbar;
     }
 
+    //Unused
     private ComboBox<String> getAliasesBox(KeyStore keyStore) {
         Map<String, String> options = new HashMap<>();
 
@@ -251,6 +247,7 @@ public class MainView extends VerticalLayout {
         }
     }
 
+    //Unused
     private KeyStore getKeyStore() {
         KeyStore keyStore;
         try {
@@ -286,7 +283,7 @@ public class MainView extends VerticalLayout {
         dialog.setCloseOnEsc(false);
         dialog.setCloseOnOutsideClick(false);
 
-        //cancel
+        //cancel button
         HorizontalLayout cancelLayout = new HorizontalLayout();
         Button cancelButton = new Button("", VaadinIcon.CLOSE.create());
         Icon icon = (Icon) cancelButton.getIcon();
@@ -298,8 +295,6 @@ public class MainView extends VerticalLayout {
         //approve
         VerticalLayout approveLayout = new VerticalLayout();
 
-//        KeyStore keyStore = getKeyStore();
-//        ComboBox<String> comboBox = getAliasesBox(keyStore);
         ComboBox<JSONObject> comboBox = getComboWithCertificates();
         comboBox.setWidthFull();
 
@@ -403,7 +398,7 @@ public class MainView extends VerticalLayout {
                                     for (byte b : fileDigest) {
                                         String hex = Integer.toHexString(0xff & b);
                                         if (hex.length() == 1) hexString.append('0');
-                                        hexString.append(hex);
+                                        hexString.append(hex.toUpperCase());
                                     }
                                     System.out.println("Хеш документа на подпись: " + hexString);
                                     System.out.println("сохранен с контейнером на " + stampedPath);
@@ -467,8 +462,7 @@ public class MainView extends VerticalLayout {
         JreJsonObject jsonObject = (JreJsonObject) oInfo;
         JSONObject mainObject = new JSONObject(jsonObject);
         JSONObject object = mainObject.getJSONObject("object");
-        String algorithm = object.getString("Algorithm");
-        return algorithm;
+        return object.getString("Algorithm");
     }
 
     private String getLocation(JsonValue oInfo) {
@@ -566,8 +560,6 @@ public class MainView extends VerticalLayout {
         grid.getColumnByKey("description").setHeader("Описание");
         grid.getColumnByKey("size").setHeader("Размер");
         grid.removeColumnByKey("path");
-//        grid.getColumnByKey("path").setHeader("Путь");
-
         grid.setSelectionMode(Grid.SelectionMode.MULTI);
 
         return grid;

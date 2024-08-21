@@ -1,9 +1,6 @@
-window.signHash = async function (hashBase64OrHex, selectedCertID) {
-    // var hash = hashBase64OrHex;
+window.signHash = async function (hashBase64OrHex, thumbprint) {
 
     // Получаю нужный сертификат
-    var thumbprint = selectedCertID;
-
     try {
         var oStore = await cadesplugin.CreateObjectAsync("CAdESCOM.Store");
         await oStore.Open(cadesplugin.CAPICOM_CURRENT_USER_STORE, cadesplugin.CAPICOM_MY_STORE,
@@ -11,7 +8,7 @@ window.signHash = async function (hashBase64OrHex, selectedCertID) {
 
         var all_certs = await oStore.Certificates;
         var oCerts = await all_certs.Find(cadesplugin.CAPICOM_CERTIFICATE_FIND_SHA1_HASH, thumbprint);
-        if ((await oCerts.Count) == 0) {
+        if (await oCerts.Count === 0) {
             alert("Certificate not found");
             return;
         }
@@ -23,48 +20,40 @@ window.signHash = async function (hashBase64OrHex, selectedCertID) {
         let certPublicKey = await certificate.PublicKey();
         let certAlgorithm = await certPublicKey.Algorithm;
         let algorithmValue = await certAlgorithm.Value;
-        let hashAlgorithm;
 
         // Создаем объект CAdESCOM.HashedData
         var oHashObject = await cadesplugin.CreateObjectAsync("CAdESCOM.HashedData");
         //определяем алгоритм подписания по данным из сертификата и получаем алгоритм хеширования
         if (algorithmValue === "1.2.643.7.1.1.1.1") {
-            hashAlgorithm = "2012256";
             oHashObject.propset_Algorithm(cadesplugin.CADESCOM_HASH_ALGORITHM_CP_GOST_3411_2012_256);
         } else if (algorithmValue === "1.2.643.7.1.1.1.2") {
-            hashAlgorithm = "2012512";
             oHashObject.propset_Algorithm(cadesplugin.CADESCOM_HASH_ALGORITHM_CP_GOST_3411_2012_512);
         } else if (algorithmValue === "1.2.643.2.2.19") {
-            hashAlgorithm = "3411";
             oHashObject.propset_Algorithm(cadesplugin.CADESCOM_HASH_ALGORITHM_CP_GOST_3411);
         } else {
             alert("Реализуемый алгоритм не подходит для подписания документа.");
             return;
         }
-        console.log("algorithm!!!: ", hashAlgorithm);
+
         await oHashObject.SetHashValue(hashBase64OrHex);
-        console.log("set hash value!!!");
+
+        //Получаю подписчика
+        var oSigner = await cadesplugin.CreateObjectAsync("CAdESCOM.CPSigner");
+        console.log("oSigner!!!: ", oSigner);
+        await oSigner.propset_Certificate(certificate);
+        await oSigner.propset_CheckCertificate(true);
+        await oSigner.propset_Options(cadesplugin.CAPICOM_CERTIFICATE_INCLUDE_CHAIN_EXCEPT_ROOT);
 
         //Создание объекта для подписанных данных
         var oSignedData = await cadesplugin.CreateObjectAsync("CAdESCOM.CadesSignedData");
-
-        //Получаю подписчика
-        try {
-            var oSigner = await cadesplugin.CreateObjectAsync("CAdESCOM.CPSigner");
-            console.log("oSigner!!!: ", oSigner);
-            await oSigner.propset_Certificate(certificate);
-            await oSigner.propset_CheckCertificate(true);
-        } catch (err) {
-            throw "Failed to create CAdESCOM.CPSigner: " + err.number;
-        }
 
         //Подписание данных
         // var signedMessage = await oSignedData.SignCades(oSigner, cadesplugin.CADESCOM_CADES_BES, /*detached*/ true);
         var sSignedMessage = await oSignedData.SignHash(oHashObject, oSigner, cadesplugin.CADESCOM_CADES_BES);
         console.log("signedMessage: ", sSignedMessage);
 
-        var verifyResult = await VerifySignature(oHashObject, sSignedMessage);
-        if (verifyResult) {
+        var bVerifyResult = await VerifySignature(oHashObject, sSignedMessage);
+        if (bVerifyResult) {
             alert("Подпись подтверждена");
         }
 
@@ -92,11 +81,9 @@ async function VerifySignature(oHashedData, sSignedMessage) {
     return true;
 }
 
-window.createSign = async function (dataToSign, selectedCertID) {
+window.createSign = async function (dataToSign, thumbprint) {
 
     // Получаю нужный сертификат
-    var thumbprint = selectedCertID;
-
     try {
         var oStore = await cadesplugin.CreateObjectAsync("CAdESCOM.Store");
         await oStore.Open(cadesplugin.CAPICOM_CURRENT_USER_STORE, cadesplugin.CAPICOM_MY_STORE,
@@ -104,7 +91,7 @@ window.createSign = async function (dataToSign, selectedCertID) {
 
         var all_certs = await oStore.Certificates;
         var oCerts = await all_certs.Find(cadesplugin.CAPICOM_CERTIFICATE_FIND_SHA1_HASH, thumbprint);
-        if ((await oCerts.Count) == 0) {
+        if (await oCerts.Count === 0) {
             alert("Certificate not found");
             return;
         }
