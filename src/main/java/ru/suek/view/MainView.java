@@ -19,6 +19,7 @@ import com.vaadin.flow.component.html.IFrame;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.upload.Upload;
@@ -48,7 +49,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static ru.suek.event.SignContent.getStampTextBuilder;
@@ -98,6 +98,7 @@ public class MainView extends VerticalLayout {
             //получаем отпечаток SHA1 (id) сертификата
             certId = selectedComboBoxValue.get("id").toString();
             System.out.println("selectedComboBoxValue id: " + certId + " name: " + selectedComboBoxValue.get("name"));
+            algorithm = null;
             this.getElement().executeJs("return getCertInfo($0, $1)", /*sha1*/ certId, /*options*/ null)
                     .then(oInfo -> {
                         //Определяем алгоритм
@@ -108,6 +109,17 @@ public class MainView extends VerticalLayout {
                         System.out.println("got algorithm: " + algorithm);
                         stampText = getStampTextBuilder(oInfo);
                     });
+
+            //TODO Error: WARN if cert is not found!
+//                Notification notification = new Notification("Сертификат с отпечатком "
+//                        + certId
+//                        + " в хранилище не обнаружен, файл не будет подписан корректно. Выберете другой сертификат или обратитесь за помощью");
+//                notification.addThemeVariants(NotificationVariant.LUMO_ERROR); // Установите тему
+//                notification.getElement().getStyle().set("color", "red"); // Задайте цвет шрифта
+//                notification.setDuration(5000); // Длительность отображения
+//                notification.setPosition(Notification.Position.MIDDLE);
+//
+//                notification.open();
         });
 
         return comboBox;
@@ -117,24 +129,15 @@ public class MainView extends VerticalLayout {
         files = getListElements("resources/data/PDF");
         System.out.println("resource pdf size: " + files.size());
 
-        List<String> descriptions = new ArrayList<>();
+        List<FileDTO> dtoFiles = new ArrayList<>();
         for (File file : files) {
-            descriptions.add("Описание для файла " + file.getName());
-        }
 
-        AtomicInteger counter = new AtomicInteger(0);
-        List<FileDTO> dtoFiles = files
-                .stream()
-                .map(file -> {
-                    long fileLength = file.length();
-                    long sizeMb = fileLength / 1024 / 1024;
-                    long sizeKb = fileLength / 1024;
-                    FileDTO dto = new FileDTO(file.getName(),
-                            descriptions.get(counter.getAndIncrement()), file.getAbsolutePath(), sizeMb > 0 ? file.length() / 1024 / 1024 + " Мб" : sizeKb > 0 ? sizeKb + "Кб" : fileLength + " байт"
-                    );
-                    return dto;
-                })
-                .toList();
+            long fileLength = file.length();
+            long sizeMb = fileLength / 1024 / 1024;
+            long sizeKb = fileLength / 1024;
+
+            dtoFiles.add(new FileDTO(file.getName(), "Описание для файла " + file.getName(), file.getAbsolutePath(), sizeMb > 0 ? file.length() / 1024 / 1024 + " Мб" : sizeKb > 0 ? sizeKb + "Кб" : fileLength + " байт"));
+        }
 
         System.out.println("file dto elements: " + dtoFiles);
 
