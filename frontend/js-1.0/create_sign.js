@@ -20,15 +20,19 @@ window.signHash = async function (hashBase64OrHex, thumbprint) {
         let certPublicKey = await certificate.PublicKey();
         let certAlgorithm = await certPublicKey.Algorithm;
         let algorithmValue = await certAlgorithm.Value;
+        console.log("algorithmValue ", algorithmValue);
 
         // Создаем объект CAdESCOM.HashedData
         var oHashObject = await cadesplugin.CreateObjectAsync("CAdESCOM.HashedData");
         //определяем алгоритм подписания по данным из сертификата и получаем алгоритм хеширования
         if (algorithmValue === "1.2.643.7.1.1.1.1") {
+            // oSigner.propset_TSAAddress(CryptographyObject.tsaAddress2012);
             oHashObject.propset_Algorithm(cadesplugin.CADESCOM_HASH_ALGORITHM_CP_GOST_3411_2012_256);
         } else if (algorithmValue === "1.2.643.7.1.1.1.2") {
+            // oSigner.propset_TSAAddress(CryptographyObject.tsaAddress2012);
             oHashObject.propset_Algorithm(cadesplugin.CADESCOM_HASH_ALGORITHM_CP_GOST_3411_2012_512);
         } else if (algorithmValue === "1.2.643.2.2.19") {
+            // oSigner.propset_TSAAddress(CryptographyObject.tsaAddress2001);
             oHashObject.propset_Algorithm(cadesplugin.CADESCOM_HASH_ALGORITHM_CP_GOST_3411);
         } else {
             alert("Реализуемый алгоритм не подходит для подписания документа.");
@@ -41,23 +45,23 @@ window.signHash = async function (hashBase64OrHex, thumbprint) {
         var oSigner = await cadesplugin.CreateObjectAsync("CAdESCOM.CPSigner");
         console.log("oSigner!!!: ", oSigner);
         await oSigner.propset_Certificate(certificate);
-        await oSigner.propset_CheckCertificate(true);
         await oSigner.propset_Options(cadesplugin.CAPICOM_CERTIFICATE_INCLUDE_WHOLE_CHAIN);
+        await oSigner.propset_CheckCertificate(true);
 
         //Создание объекта для подписанных данных
         var oSignedData = await cadesplugin.CreateObjectAsync("CAdESCOM.CadesSignedData");
         await oSignedData.propset_ContentEncoding(cadesplugin.CADESCOM_BASE64_TO_BINARY);
 
-        //Подписание данных
-        // var signedMessage = await oSignedData.SignCades(oSigner, cadesplugin.CADESCOM_CADES_BES, /*detached*/ true);
+        //Подписание данных в base64 кодировке
+        // "Не задан адрес службы штампов времени (0xC2100121)"
+        // var sSignedMessage = await oSignedData.SignHash(oHashObject, oSigner, cadesplugin.CADESCOM_CADES_X_LONG_TYPE_1);
         var sSignedMessage = await oSignedData.SignHash(oHashObject, oSigner, cadesplugin.CADESCOM_CADES_BES);
         console.log("signedMessage: ", sSignedMessage);
 
-        var bVerifyResult = await VerifySignature(oHashObject, sSignedMessage);
-        if (bVerifyResult) {
-            alert("Подпись подтверждена");
-        }
-
+        // var bVerifyResult = await VerifySignature(oHashObject, sSignedMessage);
+        // if (bVerifyResult) {
+        //     alert("Подпись подтверждена");
+        // }
 
         return sSignedMessage;
     } catch (err) {
