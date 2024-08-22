@@ -19,6 +19,7 @@ import com.vaadin.flow.component.html.IFrame;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.upload.Upload;
@@ -382,7 +383,7 @@ public class MainView extends VerticalLayout {
                         appearance.setLayer2Font(font);
                         appearance.setLayer2Text(stampText.toString());
                         ExternalSignatureContainer external = new ExternalBlankSignatureContainer(PdfName.ADOBE_PPKLITE, PdfName.ADBE_PKCS7_DETACHED);
-                        MakeSignature.signExternalContainer(appearance, external, 65536);
+                        MakeSignature.signExternalContainer(appearance, external, 8192);
 
                         stamper.close();
                         reader.close();
@@ -476,6 +477,17 @@ public class MainView extends VerticalLayout {
                 });
 
                 dialog.close();
+
+                String postfix = (selectedItems.size() > 1) ? "ы" : "";
+                Notification notification = new Notification(String.format("Файл%s подписан%s успешно", postfix, postfix));
+                // Установка стиля уведомления
+                notification.addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                notification.getElement().getStyle().set("color", "white");
+                notification.setDuration(3000);
+                notification.setPosition(Notification.Position.MIDDLE);
+
+                // Отображение уведомления
+                notification.open();
             }
         });
 

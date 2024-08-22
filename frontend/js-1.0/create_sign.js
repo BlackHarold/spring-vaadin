@@ -58,11 +58,10 @@ window.signHash = async function (hashBase64OrHex, thumbprint) {
         var sSignedMessage = await oSignedData.SignHash(oHashObject, oSigner, cadesplugin.CADESCOM_CADES_BES);
         console.log("signedMessage: ", sSignedMessage);
 
-        var bVerifyResult = await VerifySignature(oHashObject, sSignedMessage);
-        if (bVerifyResult) {
-            alert("Подпись подтверждена");
-        }
-
+        // var bVerifyResult = await VerifySignature(oHashObject, sSignedMessage);
+        // if (bVerifyResult) {
+        //     alert("Подпись подтверждена");
+        // }
 
         return sSignedMessage;
     } catch (err) {
