@@ -4,6 +4,7 @@ public class FileDTO {
    private String name;
    private String description;
    private String path;
+   private String size;
 
     public FileDTO(String name, String path) {
         this.name = name;
@@ -14,6 +15,13 @@ public class FileDTO {
         this.name = name;
         this.description = description;
         this.path = path;
+    }
+
+    public FileDTO(String name, String description, String path, String size) {
+        this.name = name;
+        this.description = description;
+        this.path = path;
+        this.size = size;
     }
 
     public String getName() {
@@ -40,12 +48,21 @@ public class FileDTO {
         this.path = path;
     }
 
+    public String getSize() {
+        return size;
+    }
+
+    public void setSize(String size) {
+        this.size = size;
+    }
+
     @Override
     public String toString() {
         return "FileDTO{" +
                 "name='" + name + '\'' +
                 ", description='" + description + '\'' +
                 ", path='" + path + '\'' +
+                ", size='" + size + '\'' +
                 '}';
     }
 }

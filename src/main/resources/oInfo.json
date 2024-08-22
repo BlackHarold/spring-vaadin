@@ -1,0 +1,30 @@
+{
+  "HasPrivateKey": true,
+  "IsValid": true,
+  "IssuerName": "CN=CRYPTO-PRO Test Center 2, O=CRYPTO-PRO LLC, L=Moscow, C=RU, E=support@cryptopro.ru",
+  "Issuer": {
+    "CN": "CRYPTO-PRO Test Center 2",
+    "O": "CRYPTO-PRO LLC",
+    "L": "Moscow",
+    "C": "RU",
+    "E": "support@cryptopro.ru"
+  },
+  "SerialNumber": "120064AF15F6272EFF088F306400020064AF15",
+  "SubjectName": "C=RU, L=Каратау, O=suek, OU=egc, CN=Петр Петров, E=petrovpp@suek.ru",
+  "Subject": {
+    "C": "RU",
+    "L": "Каратау",
+    "O": "suek",
+    "OU": "egc",
+    "CN": "Петр Петров",
+    "E": "petrovpp@suek.ru"
+  },
+  "Name": "Петр Петров",
+  "Thumbprint": "9007141E9D55DC3619AD8C68D72B89E57FA72910",
+  "ValidFromDate": "2024-08-02T10:03:52.000Z",
+  "ValidToDate": "2024-10-02T10:13:52.000Z",
+  "Version": 3,
+  "Algorithm": "ГОСТ Р 34.10-2012 256 бит",
+  "ProviderName": "Crypto-Pro GOST R 34.10-2012 Cryptographic Service Provider",
+  "ProviderType": 80
+}
