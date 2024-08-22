@@ -1,5 +1,6 @@
 package ru.suek.view;
 
+import com.itextpdf.text.BaseColor;
 import com.itextpdf.text.DocumentException;
 import com.itextpdf.text.Font;
 import com.itextpdf.text.Rectangle;
@@ -41,9 +42,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
@@ -54,7 +52,7 @@ import java.util.stream.Collectors;
 
 import static ru.suek.event.SignContent.getStampTextBuilder;
 
-@Route("")
+@Route("/signature")
 @JavaScript("./js-1.0/cadesplugin_api.js")
 @JavaScript("./js-1.0/crypto_plugin.js")
 @JavaScript("./js-1.0/create_sign.js")
@@ -375,11 +373,10 @@ public class MainView extends VerticalLayout {
                         Font font = new Font(bf, 12);
 
                         //Определение координат для рамки
-
                         float padding = 10;
                         float pageWidth = reader.getPageSize(1).getWidth();
                         float width = pageWidth / 2 + padding * 2; //Ширина рамки
-                        float x = (pageWidth - width - padding * 2); //Положение по X * Кол-во подписей
+                        float x = (pageWidth - width - padding * 2) - padding; //Положение по X * Кол-во подписей
                         float height = font.getSize() * 4 * 2; //Высота рамки
                         float y = (height + padding * 2) * sgnCnt; //Положение по Y * Кол - во подписей
 
