@@ -48,6 +48,7 @@ import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -353,37 +354,38 @@ public class MainView extends VerticalLayout {
 
                     PdfSignatureAppearance appearance;
                     InputStream inputStream;
-                    int existingSignCount;
+                    int sgnCnt;
                     String signFieldName;
                     try (FileOutputStream fos = new FileOutputStream(stampedPath)) {
                         PdfReader reader = new PdfReader(rootPath);
-                        PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0');
+                        PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0', null, true);
+
+                        //Определение количества подписей в документе
+                        sgnCnt = reader.getAcroFields().getSignatureNames().size() + 1;
+                        signFieldName = "signatureField" + sgnCnt;
 
                         //Определяем стиль шрифта с поддержкой кириллицы и содержимое подписи
                         BaseFont bf = BaseFont.createFont("./resources/fonts/FreeSans.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
                         Font font = new Font(bf, 12);
 
-                        float padding = 10;
                         //Определение координат для рамки
-                        //Получение ширины страницы
+
+                        float padding = 10;
                         float pageWidth = reader.getPageSize(1).getWidth();
-                        System.out.println("page width: " + pageWidth);
                         float width = pageWidth / 2 + padding * 2; //Ширина рамки
-                        float x = pageWidth - width - padding * 2; //Положение по X
+                        float x = (pageWidth - width - padding * 2); //Положение по X * Кол-во подписей
                         float height = font.getSize() * 4 * 2; //Высота рамки
-                        float y = height + padding * 2; //Положение по Y
+                        float y = (height + padding * 2) * sgnCnt; //Положение по Y * Кол - во подписей
 
                         appearance = stamper.getSignatureAppearance();
                         appearance.setReason(reason);
                         appearance.setLocation(location);
                         appearance.setContact(contact);
-                        existingSignCount = reader.getAcroFields().getSignatureNames().size();
-                        signFieldName = "signatureField" + (existingSignCount + 1);
                         appearance.setVisibleSignature(new Rectangle(x, y, x + width + padding * 2, y + height + padding * 2), 1, signFieldName);
                         appearance.setLayer2Font(font);
                         appearance.setLayer2Text(stampText.toString());
                         ExternalSignatureContainer external = new ExternalBlankSignatureContainer(PdfName.ADOBE_PPKLITE, PdfName.ADBE_PKCS7_DETACHED);
-                        MakeSignature.signExternalContainer(appearance, external, 8192);
+                        MakeSignature.signExternalContainer(appearance, external, 65536);
 
                         stamper.close();
                         reader.close();
@@ -393,9 +395,8 @@ public class MainView extends VerticalLayout {
                     }
 
                     //Подписываем документ подписью
-                    StringBuilder hexStringBuilder1 = new StringBuilder();
-                    StringBuilder hexStringBuilder2 = new StringBuilder();
-//                    HashAlgorithm hashAlgorithm; // ? ? ?
+                    String hexString1;
+                    String hexString2;
                     try {
                         MessageDigest messageDigest;
                         if (algorithm.contains("2012") && algorithm.contains("256")) {
@@ -420,19 +421,10 @@ public class MainView extends VerticalLayout {
 
                         byte[] hashBytes = messageDigest.digest();
 
-                        // Преобразование хеша в шестнадцатеричную строку
-                        for (byte b : hashBytes) {
-                            String hex = Integer.toHexString(0xff & b);
-                            if (hex.length() == 1) hexStringBuilder1.append('0');
-                            hexStringBuilder1.append(hex);
-                        }
-                        System.out.println("Хеш документа на подпись вариант 1: " + hexStringBuilder1.toString().toUpperCase());
-
-                        Formatter formatter = new Formatter(hexStringBuilder2);
-                        for (byte b : hashBytes) {
-                            formatter.format("%02x", b);
-                        }
-                        System.out.println("Хеш документа на подпись вариант 2: " + hexStringBuilder2.toString().toUpperCase());
+                        hexString1 = getHexString1(hashBytes);
+                        System.out.println("Хеш документа на подпись вариант 1: " + hexString1);
+                        hexString2 = getHexString2(hashBytes);
+                        System.out.println("Хеш документа на подпись вариант 2: " + hexString2);
 
                     } catch (NoSuchAlgorithmException e) {
                         throw new RuntimeException(e);
@@ -442,7 +434,7 @@ public class MainView extends VerticalLayout {
                         throw new RuntimeException(e);
                     }
 
-                    String hashString = hexStringBuilder1.toString().toUpperCase();
+                    String hashString = hexString1;
                     System.out.println("Хеш документа на подпись: " + hashString);
 
                     //На клиенте подписываем hash от сервера
@@ -452,8 +444,6 @@ public class MainView extends VerticalLayout {
                                 if (signedData instanceof JreJsonString) {
                                     base64Pdf = signedData.asString();
                                     base64Pdf = base64Pdf.replaceAll("[^A-Za-z0-9+/=]", "");
-
-                                    System.out.println("after sign size: " + base64Pdf.length());
                                     System.out.println("Результат подписи хеша файла:\n" + base64Pdf);
                                 }
 
@@ -464,7 +454,7 @@ public class MainView extends VerticalLayout {
                                     // Использование внешнего контейнера для подписи
                                     ExternalSignatureContainer external = new MyExternalSignatureContainer(decodedBytes);
                                     MakeSignature.signDeferred(reader, signFieldName, fos, external);
-                                    System.out.println("Файл подписан и сохранен: " + outputPath);
+                                    System.out.println(LocalDateTime.now() + " Файл подписан и сохранен: " + outputPath);
 
                                     fos.close();
                                     reader.close();
@@ -498,6 +488,29 @@ public class MainView extends VerticalLayout {
         //group layouts
         dialog.add(cancelLayout, approveLayout);
         dialog.open();
+    }
+
+    // Преобразование хеша в шестнадцатеричную строку способ первый
+    private String getHexString1(byte[] hashBytes) {
+        StringBuilder hexStringBuilder = new StringBuilder();
+        for (byte b : hashBytes) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) hexStringBuilder.append('0');
+            hexStringBuilder.append(hex);
+        }
+
+        return hexStringBuilder.toString().toUpperCase();
+    }
+
+    // Преобразование хеша в шестнадцатеричную строку способ второй
+    private String getHexString2(byte[] hashBytes) {
+        StringBuilder sb = new StringBuilder();
+        Formatter formatter = new Formatter(sb);
+        for (byte b : hashBytes) {
+            formatter.format("%02x", b);
+        }
+
+        return sb.toString().toUpperCase();
     }
 
     private void setAlgorithm(String algorithm) {
