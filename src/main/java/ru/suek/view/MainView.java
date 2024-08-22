@@ -137,7 +137,10 @@ public class MainView extends VerticalLayout {
             long sizeMb = fileLength / 1024 / 1024;
             long sizeKb = fileLength / 1024;
 
-            dtoFiles.add(new FileDTO(file.getName(), "Описание для файла " + file.getName(), file.getAbsolutePath(), sizeMb > 0 ? file.length() / 1024 / 1024 + " Мб" : sizeKb > 0 ? sizeKb + "Кб" : fileLength + " байт"));
+            dtoFiles.add(new FileDTO(file.getName(),
+                    "Описание для файла " + file.getName(),
+                    file.getAbsolutePath(), sizeMb > 0 ? file.length() / 1024 / 1024 + " Мб" : sizeKb > 0 ? sizeKb + " Кб" : fileLength + " байт")
+            );
         }
 
         System.out.println("file dto elements: " + dtoFiles);
@@ -329,9 +332,12 @@ public class MainView extends VerticalLayout {
         comboBox.setWidthFull();
 
         Div infoText = new Div();
-        infoText.getElement().setProperty("innerHTML", "<strong>Подтвердите подписание выбранных файлов<strong>");
+        infoText.getElement().setProperty("innerHTML", "Подтвердите подписание выбранных файлов");
         Button approveButton = new Button("Подписать файлы", VaadinIcon.FILE_PROCESS.create());
-        approveButton.getElement().getStyle().set("color", "#5c995e");
+        approveButton.setWidth("100%");
+        approveButton.setHeight("60px");
+        approveButton.getElement().getStyle().set("background-color", "#F0F0F0"); // Зеленый цвет
+        approveButton.getElement().getStyle().set("color", "#2196F3"); // Цвет текста
         approveButton.addClickListener(event -> {
             if (comboBox.isEmpty()) {
                 Notification.show("Пожалуйста, выберете сертификат!", 1000, Notification.Position.MIDDLE);
