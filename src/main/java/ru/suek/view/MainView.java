@@ -19,7 +19,6 @@ import com.vaadin.flow.component.html.IFrame;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
-import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.upload.Upload;
@@ -351,6 +350,10 @@ public class MainView extends VerticalLayout {
                             .replaceAll("_stamped.pdf", "_signed.pdf");
                     System.out.println("outputPath: " + outputPath);
 
+                    PdfSignatureAppearance appearance;
+                    InputStream inputStream;
+                    int existingSignCount;
+                    String signFieldName;
                     try (FileOutputStream fos = new FileOutputStream(stampedPath)) {
                         PdfReader reader = new PdfReader(rootPath);
                         PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0');
@@ -369,15 +372,17 @@ public class MainView extends VerticalLayout {
                         float height = font.getSize() * 4 * 2; //Высота рамки
                         float y = height + padding * 2; //Положение по Y
 
-                        PdfSignatureAppearance appearance = stamper.getSignatureAppearance();
+                        appearance = stamper.getSignatureAppearance();
                         appearance.setReason(reason);
                         appearance.setLocation(location);
                         appearance.setContact(contact);
-                        appearance.setVisibleSignature(new Rectangle(x, y, x + width + padding * 2, y + height + padding * 2), 1, "signatureField");
+                        existingSignCount = reader.getAcroFields().getSignatureNames().size();
+                        signFieldName = "signatureField" + (existingSignCount + 1);
+                        appearance.setVisibleSignature(new Rectangle(x, y, x + width + padding * 2, y + height + padding * 2), 1, signFieldName);
                         appearance.setLayer2Font(font);
                         appearance.setLayer2Text(stampText.toString());
                         ExternalSignatureContainer external = new ExternalBlankSignatureContainer(PdfName.ADOBE_PPKLITE, PdfName.ADBE_PKCS7_DETACHED);
-                        MakeSignature.signExternalContainer(appearance, external, 8192);
+                        MakeSignature.signExternalContainer(appearance, external, 65536);
 
                         stamper.close();
                         reader.close();
@@ -387,45 +392,60 @@ public class MainView extends VerticalLayout {
                     }
 
                     //Подписываем документ подписью
-                    StringBuilder hexStringBuilder = new StringBuilder();
+                    StringBuilder hexStringBuilder1 = new StringBuilder();
+                    StringBuilder hexStringBuilder2 = new StringBuilder();
+//                    HashAlgorithm hashAlgorithm; // ? ? ?
                     try {
-                        MessageDigest md;
+                        MessageDigest messageDigest;
                         if (algorithm.contains("2012") && algorithm.contains("256")) {
                             System.out.println("-> 2012_256");
-
-                            md = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_256_NAME);
+                            messageDigest = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_256_NAME, JCP.PROVIDER_NAME);
                         } else if (algorithm.contains("2012") && algorithm.contains("512")) {
                             System.out.println("-> 2012_512");
-                            md = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_512_NAME);
+                            messageDigest = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_512_NAME, JCP.PROVIDER_NAME);
                         } else {
                             System.out.println("-> 3411");
-                            md = MessageDigest.getInstance(JCP.GOST_DIGEST_NAME);
+                            messageDigest = MessageDigest.getInstance(JCP.GOST_DIGEST_NAME, JCP.PROVIDER_NAME);
                         }
 
-                        Path path = Paths.get(stampedPath);
-                        byte[] pdfBytes = Files.readAllBytes(path);
-                        md.update(pdfBytes);
+                        // Чтение данных из потока и вычисление хэша
+                        byte[] buffer = new byte[8192];
+                        int bytesRead;
 
+                        inputStream = appearance.getRangeStream();
+                        while ((bytesRead = inputStream.read(buffer)) != -1) {
+                            messageDigest.update(buffer, 0, bytesRead);
+                        }
 
-                        // Вычисление хеша
-                        byte[] fileDigest = md.digest();
+                        byte[] hashBytes = messageDigest.digest();
+
                         // Преобразование хеша в шестнадцатеричную строку
-                        for (byte b : fileDigest) {
+                        for (byte b : hashBytes) {
                             String hex = Integer.toHexString(0xff & b);
-                            if (hex.length() == 1) hexStringBuilder.append('0');
-                            hexStringBuilder.append(hex.toUpperCase());
+                            if (hex.length() == 1) hexStringBuilder1.append('0');
+                            hexStringBuilder1.append(hex);
                         }
+                        System.out.println("Хеш документа на подпись вариант 1: " + hexStringBuilder1.toString().toUpperCase());
+
+                        Formatter formatter = new Formatter(hexStringBuilder2);
+                        for (byte b : hashBytes) {
+                            formatter.format("%02x", b);
+                        }
+                        System.out.println("Хеш документа на подпись вариант 2: " + hexStringBuilder2.toString().toUpperCase());
+
                     } catch (NoSuchAlgorithmException e) {
                         throw new RuntimeException(e);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
+                    } catch (NoSuchProviderException e) {
+                        throw new RuntimeException(e);
                     }
 
-                    System.out.println("Хеш документа на подпись: " + hexStringBuilder);
-                    System.out.println("Файл сохранен с контейнером на " + stampedPath);
+                    String hashString = hexStringBuilder1.toString().toUpperCase();
+                    System.out.println("Хеш документа на подпись: " + hashString);
 
                     //На клиенте подписываем hash от сервера
-                    this.getElement().executeJs("return signHash($0, $1)", hexStringBuilder.toString(), certId)
+                    this.getElement().executeJs("return signHash($0, $1)", hashString, certId)
                             .then(signedData -> {
                                 String base64Pdf = null;
                                 if (signedData instanceof JreJsonString) {
@@ -442,7 +462,7 @@ public class MainView extends VerticalLayout {
 
                                     // Использование внешнего контейнера для подписи
                                     ExternalSignatureContainer external = new MyExternalSignatureContainer(decodedBytes);
-                                    MakeSignature.signDeferred(reader, "signatureField", fos, external);
+                                    MakeSignature.signDeferred(reader, signFieldName, fos, external);
                                     System.out.println("Файл подписан и сохранен: " + outputPath);
 
                                     fos.close();
