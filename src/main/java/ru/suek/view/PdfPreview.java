@@ -29,7 +29,7 @@ public class PdfPreview extends VerticalLayout {
 
     public PdfPreview() {
         setSizeFull();
-        H1 heading = new H1("Таблица подписанных файлов");
+        H1 heading = new H1("Просмотр подписанных файлов");
         heading.setClassName("custom-h1");
         add(heading);
 
