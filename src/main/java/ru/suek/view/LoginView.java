@@ -7,6 +7,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Route;
+import ru.suek.util.Token;
 
 @Route("")
 public class LoginView extends VerticalLayout {
@@ -24,17 +25,11 @@ public class LoginView extends VerticalLayout {
         loginButton.addClickListener(event -> {
             String username = usernameField.getValue();
             String password = passwordField.getValue();
-
-            // Здесь можно добавить логику проверки логина и пароля
             if (username.equals("admin") && password.equals("password")) {
-                // Успешная авторизация
-                // Можно перенаправить на другую страницу или показать сообщение
-                usernameField.clear();
-                passwordField.clear();
+                Token.setValue("logon");
                 UI.getCurrent().navigate("signature");
             } else {
-                // Неверный логин или пароль
-                // Можно показать сообщение об ошибке
+                Token.setValue(null);
             }
         });
 

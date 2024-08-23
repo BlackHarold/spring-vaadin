@@ -9,6 +9,7 @@ import com.itextpdf.text.pdf.security.ExternalBlankSignatureContainer;
 import com.itextpdf.text.pdf.security.ExternalSignatureContainer;
 import com.itextpdf.text.pdf.security.MakeSignature;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dependency.JavaScript;
@@ -26,7 +27,10 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.data.selection.MultiSelect;
+import com.vaadin.flow.router.BeforeEnterEvent;
+import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.server.VaadinServletRequest;
 import elemental.json.JsonValue;
 import elemental.json.impl.JreJsonArray;
 import elemental.json.impl.JreJsonObject;
@@ -37,6 +41,7 @@ import org.json.JSONObject;
 import ru.CryptoPro.JCP.JCP;
 import ru.CryptoPro.JCSP.JCSP;
 import ru.suek.model.FileDTO;
+import ru.suek.util.Token;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -56,10 +61,7 @@ import static ru.suek.event.SignContent.getStampTextBuilder;
 @JavaScript("./js-1.0/cadesplugin_api.js")
 @JavaScript("./js-1.0/crypto_plugin.js")
 @JavaScript("./js-1.0/create_sign.js")
-public class MainView extends VerticalLayout {
-    /**
-     * уникальное имя записываемого сертификата
-     */
+public class MainView extends VerticalLayout implements BeforeEnterObserver {
 
     private Grid<FileDTO> grid;
 
@@ -125,61 +127,78 @@ public class MainView extends VerticalLayout {
     }
 
     public MainView(List<File> files) {
-        files = getListElements("resources/data/PDF");
-        System.out.println("resource pdf size: " + files.size());
+        System.out.println("Token " + Token.getValue());
+        if (Token.getValue() == null || !Token.getValue().equals("logon")) {
+            UI.getCurrent().navigate(LoginView.class);
+        } else {
 
-        List<FileDTO> dtoFiles = new ArrayList<>();
-        for (File file : files) {
+            files = getListElements("resources/data/PDF");
+            System.out.println("resource pdf size: " + files.size());
 
-            long fileLength = file.length();
-            long sizeMb = fileLength / 1024 / 1024;
-            long sizeKb = fileLength / 1024;
+            List<FileDTO> dtoFiles = new ArrayList<>();
+            for (File file : files) {
 
-            dtoFiles.add(new FileDTO(file.getName(),
-                    "Описание для файла " + file.getName(),
-                    file.getAbsolutePath(), sizeMb > 0 ? file.length() / 1024 / 1024 + " Мб" : sizeKb > 0 ? sizeKb + " Кб" : fileLength + " байт")
-            );
-        }
+                long fileLength = file.length();
+                long sizeMb = fileLength / 1024 / 1024;
+                long sizeKb = fileLength / 1024;
 
-        System.out.println("file dto elements: " + dtoFiles);
-
-        this.setSizeFull();
-        this.setSpacing(true);
-        this.setPadding(true);
-
-        Button signButton = createSignButton(); //create button & set disable
-
-        Div div = new Div();
-        this.getElement().executeJs("return oAbout()")
-                .then(result -> {
-                            System.out.println("result: " + result.getClass().getSimpleName() + ": " + result);
-                            JreJsonString jreJsonString = (JreJsonString) result;
-                            String s = jreJsonString.toJson();
-                            System.out.println("s: " + s);
-                            if (s != null && !s.isEmpty()) {
-                                div.setText("Версия плагина CryptoPro: " + s.replaceAll("\"", ""));
-                                div.getStyle().set("background-color", "rgba(144, 238, 144, 0.5)");
-                            }
-                        }
+                dtoFiles.add(new FileDTO(file.getName(),
+                        "Описание для файла " + file.getName(),
+                        file.getAbsolutePath(), sizeMb > 0 ? file.length() / 1024 / 1024 + " Мб" : sizeKb > 0 ? sizeKb + " Кб" : fileLength + " байт")
                 );
+            }
 
-        if (div.getText() == null || "".equals(div.getText())) {
-            div.setText("Версия плагина CryptoPro: неопределена, проверьте установку");
-            div.getStyle().set("background-color", "rgba(255, 0, 0, 0.5)");
+            System.out.println("file dto elements: " + dtoFiles);
+
+            this.setSizeFull();
+            this.setSpacing(true);
+            this.setPadding(true);
+
+            Button signButton = createSignButton(); //create button & set disable
+
+            // Переход на другую страницу
+            Button navigateButton = new Button("Перейти в на страницу просмотра", event -> {
+                getUI().ifPresent(ui -> ui.navigate(PdfPreview.class));
+            });
+
+            Button logoff = new Button("Выйти", event -> {
+                Token.setValue(null);
+                getUI().ifPresent(ui -> ui.navigate(LoginView.class));
+            });
+
+            Div div = new Div();
+            this.getElement().executeJs("return oAbout()")
+                    .then(result -> {
+                                System.out.println("result: " + result.getClass().getSimpleName() + ": " + result);
+                                JreJsonString jreJsonString = (JreJsonString) result;
+                                String s = jreJsonString.toJson();
+                                System.out.println("s: " + s);
+                                if (s != null && !s.isEmpty()) {
+                                    div.setText("Версия плагина CryptoPro: " + s.replaceAll("\"", ""));
+                                    div.getStyle().set("background-color", "rgba(144, 238, 144, 0.5)");
+                                }
+                            }
+                    );
+
+            if (div.getText() == null || "".equals(div.getText())) {
+                div.setText("Версия плагина CryptoPro: неопределена, проверьте установку");
+                div.getStyle().set("background-color", "rgba(255, 0, 0, 0.5)");
+            }
+
+            HorizontalLayout header = new HorizontalLayout(div);
+            HorizontalLayout toolbar = new HorizontalLayout(signButton);
+            HorizontalLayout footer = new HorizontalLayout(navigateButton, logoff);
+            grid = createGrid(dtoFiles);
+            grid.addSelectionListener(event -> {
+                signButton.setEnabled(event.getAllSelectedItems().size() > 0);
+            });
+
+            IFrame iFrame = new IFrame("html/footer.html");
+            iFrame.setWidth("100%");
+            iFrame.setHeight("33%");
+
+            add(header, toolbar, grid, footer, iFrame);
         }
-
-        HorizontalLayout header = new HorizontalLayout(div);
-        HorizontalLayout toolbar = new HorizontalLayout(signButton);
-        grid = createGrid(dtoFiles);
-        grid.addSelectionListener(event -> {
-            signButton.setEnabled(event.getAllSelectedItems().size() > 0);
-        });
-
-        IFrame iFrame = new IFrame("html/footer.html");
-        iFrame.setWidth("100%");
-        iFrame.setHeight("33%");
-
-        add(header, toolbar, grid, iFrame);
     }
 
     private Button createSignButton() {
@@ -626,6 +645,14 @@ public class MainView extends VerticalLayout {
         grid.setSelectionMode(Grid.SelectionMode.MULTI);
 
         return grid;
+    }
+
+    @Override
+    public void beforeEnter(BeforeEnterEvent beforeEnterEvent) {
+        if (!Token.isUserLoggedIn()) {
+            // Переадресовываем на страницу логина
+            beforeEnterEvent.rerouteTo(LoginView.class);
+        }
     }
 }
 

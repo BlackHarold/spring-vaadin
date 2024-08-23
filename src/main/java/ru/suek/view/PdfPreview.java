@@ -1,9 +1,14 @@
 package ru.suek.view;
 
 import com.vaadin.componentfactory.pdfviewer.PdfViewer;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.upload.Upload;
+import com.vaadin.flow.component.upload.receivers.FileBuffer;
 import com.vaadin.flow.router.Route;
 
 import java.io.File;
@@ -14,6 +19,7 @@ import java.util.Base64;
 import java.util.List;
 
 @Route("/preview")
+@CssImport("./styles/styles.css")
 public class PdfPreview extends VerticalLayout {
     List<File> files = getListElements("resources/data/PDF/SIGNED");
     private Grid<File> grid = new Grid<>(File.class);
@@ -23,11 +29,13 @@ public class PdfPreview extends VerticalLayout {
 
     public PdfPreview() {
         setSizeFull();
-        add(new H1("Таблица подписанных файлов"));
+        H1 heading = new H1("Таблица подписанных файлов");
+        heading.setClassName("custom-h1");
+        add(heading);
 
         // Настройка таблицы
         grid.setItems(files);
-        grid.setColumns("Имя");
+        grid.setColumns("name");
         grid.addSelectionListener(event -> {
             File selectedFile = event.getFirstSelectedItem().orElse(null);
             if (selectedFile != null) {
@@ -35,8 +43,20 @@ public class PdfPreview extends VerticalLayout {
             }
         });
 
+        pdfViewer.setWidth("80%");
+        pdfViewer.setHeight("100%");
+        HorizontalLayout layout = new HorizontalLayout();
+        layout.setWidth("100%");
+        layout.setHeight("100%");
+        layout.add(grid, pdfViewer);
+
+        // Переход на другую страницу
+        Button navigateButton = new Button("Вернуться ня страницу подписания", event -> {
+            getUI().ifPresent(ui -> ui.navigate(MainView.class));
+        });
+
         // Добавление компонентов на страницу
-        add(/*upload,*/ grid, pdfViewer);
+        add(navigateButton,/*upload,*/ layout);
     }
 
     private void showPdfPreview(File file) {
