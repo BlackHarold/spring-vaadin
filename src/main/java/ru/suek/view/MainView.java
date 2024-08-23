@@ -1,5 +1,6 @@
 package ru.suek.view;
 
+import com.itextpdf.text.BaseColor;
 import com.itextpdf.text.DocumentException;
 import com.itextpdf.text.Font;
 import com.itextpdf.text.Rectangle;
@@ -8,7 +9,9 @@ import com.itextpdf.text.pdf.security.ExternalBlankSignatureContainer;
 import com.itextpdf.text.pdf.security.ExternalSignatureContainer;
 import com.itextpdf.text.pdf.security.MakeSignature;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dependency.JavaScript;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -25,7 +28,10 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.data.selection.MultiSelect;
+import com.vaadin.flow.router.BeforeEnterEvent;
+import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.server.VaadinServletRequest;
 import elemental.json.JsonValue;
 import elemental.json.impl.JreJsonArray;
 import elemental.json.impl.JreJsonObject;
@@ -36,31 +42,27 @@ import org.json.JSONObject;
 import ru.CryptoPro.JCP.JCP;
 import ru.CryptoPro.JCSP.JCSP;
 import ru.suek.model.FileDTO;
+import ru.suek.util.Token;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static ru.suek.event.SignContent.getStampTextBuilder;
 
-@Route("")
+@Route("/signature")
 @JavaScript("./js-1.0/cadesplugin_api.js")
 @JavaScript("./js-1.0/crypto_plugin.js")
 @JavaScript("./js-1.0/create_sign.js")
-public class MainView extends VerticalLayout {
-    /**
-     * уникальное имя записываемого сертификата
-     */
+public class MainView extends VerticalLayout implements BeforeEnterObserver {
 
     private Grid<FileDTO> grid;
 
@@ -126,58 +128,84 @@ public class MainView extends VerticalLayout {
     }
 
     public MainView(List<File> files) {
-        files = getListElements("resources/data/PDF");
-        System.out.println("resource pdf size: " + files.size());
+        System.out.println("Token " + Token.getValue());
+        if (Token.getValue() == null || !Token.getValue().equals("logon")) {
+            UI.getCurrent().navigate(LoginView.class);
+        } else {
 
-        List<FileDTO> dtoFiles = new ArrayList<>();
-        for (File file : files) {
+            files = getListElements("resources/data/PDF");
+            System.out.println("resource pdf size: " + files.size());
 
-            long fileLength = file.length();
-            long sizeMb = fileLength / 1024 / 1024;
-            long sizeKb = fileLength / 1024;
+            List<FileDTO> dtoFiles = new ArrayList<>();
+            for (File file : files) {
 
-            dtoFiles.add(new FileDTO(file.getName(), "Описание для файла " + file.getName(), file.getAbsolutePath(), sizeMb > 0 ? file.length() / 1024 / 1024 + " Мб" : sizeKb > 0 ? sizeKb + "Кб" : fileLength + " байт"));
-        }
+                long fileLength = file.length();
+                long sizeMb = fileLength / 1024 / 1024;
+                long sizeKb = fileLength / 1024;
 
-        System.out.println("file dto elements: " + dtoFiles);
-
-        this.setSizeFull();
-        this.setSpacing(true);
-        this.setPadding(true);
-
-        Button signButton = createSignButton(); //create button & set disable
-
-        Div div = new Div();
-        this.getElement().executeJs("return oAbout()")
-                .then(result -> {
-                            System.out.println("result: " + result.getClass().getSimpleName() + ": " + result);
-                            JreJsonString jreJsonString = (JreJsonString) result;
-                            String s = jreJsonString.toJson();
-                            System.out.println("s: " + s);
-                            if (s != null && !s.isEmpty()) {
-                                div.setText("Версия плагина CryptoPro: " + s.replaceAll("\"", ""));
-                                div.getStyle().set("background-color", "rgba(144, 238, 144, 0.5)");
-                            }
-                        }
+                dtoFiles.add(new FileDTO(file.getName(),
+                        "Описание для файла " + file.getName(),
+                        file.getAbsolutePath(), sizeMb > 0 ? file.length() / 1024 / 1024 + " Мб" : sizeKb > 0 ? sizeKb + " Кб" : fileLength + " байт")
                 );
+            }
 
-        if (div.getText() == null || "".equals(div.getText())) {
-            div.setText("Версия плагина CryptoPro: неопределена, проверьте установку");
-            div.getStyle().set("background-color", "rgba(255, 0, 0, 0.5)");
+            System.out.println("file dto elements: " + dtoFiles);
+
+            this.setSizeFull();
+            this.setSpacing(true);
+            this.setPadding(true);
+
+            Button signButton = createSignButton(); //create button & set disable
+
+            // Переход на другую страницу
+            Button navigateButton = new Button(
+                    "Перейти в на страницу просмотра",
+                    event -> getUI().ifPresent(ui -> ui.navigate(PdfPreview.class))
+            );
+
+            Button logoffButton = new Button("", VaadinIcon.SIGN_OUT.create());
+            logoffButton.addClickListener(event -> {
+                Token.setValue(null);
+                getUI().ifPresent(ui -> ui.navigate(LoginView.class));
+            });
+            Icon icon = (Icon) logoffButton.getIcon();
+            icon.setColor("red");
+
+            Div div = new Div();
+            this.getElement().executeJs("return oAbout()")
+                    .then(result -> {
+                                System.out.println("result: " + result.getClass().getSimpleName() + ": " + result);
+                                JreJsonString jreJsonString = (JreJsonString) result;
+                                String s = jreJsonString.toJson();
+                                System.out.println("s: " + s);
+                                if (s != null && !s.isEmpty()) {
+                                    div.setText("Версия плагина CryptoPro: " + s.replaceAll("\"", ""));
+                                    div.getStyle().set("background-color", "rgba(144, 238, 144, 0.5)");
+                                }
+                            }
+                    );
+
+            if (div.getText() == null || "".equals(div.getText())) {
+                div.setText("Версия плагина CryptoPro: неопределена, проверьте установку");
+                div.getStyle().set("background-color", "rgba(255, 0, 0, 0.5)");
+            }
+
+            HorizontalLayout header = new HorizontalLayout(div, logoffButton);
+            header.setWidth("100%");
+            header.setJustifyContentMode(JustifyContentMode.BETWEEN);
+            HorizontalLayout toolbar = new HorizontalLayout(signButton);
+            HorizontalLayout footer = new HorizontalLayout(navigateButton);
+            grid = createGrid(dtoFiles);
+            grid.addSelectionListener(event -> {
+                signButton.setEnabled(event.getAllSelectedItems().size() > 0);
+            });
+
+            IFrame iFrame = new IFrame("html/footer.html");
+            iFrame.setWidth("100%");
+            iFrame.setHeight("33%");
+
+            add(header, toolbar, grid, footer, iFrame);
         }
-
-        HorizontalLayout header = new HorizontalLayout(div);
-        HorizontalLayout toolbar = new HorizontalLayout(signButton);
-        grid = createGrid(dtoFiles);
-        grid.addSelectionListener(event -> {
-            signButton.setEnabled(event.getAllSelectedItems().size() > 0);
-        });
-
-        IFrame iFrame = new IFrame("html/footer.html");
-        iFrame.setWidth("100%");
-        iFrame.setHeight("33%");
-
-        add(header, toolbar, grid, iFrame);
     }
 
     private Button createSignButton() {
@@ -328,9 +356,12 @@ public class MainView extends VerticalLayout {
         comboBox.setWidthFull();
 
         Div infoText = new Div();
-        infoText.getElement().setProperty("innerHTML", "<strong>Подтвердите подписание выбранных файлов<strong>");
+        infoText.getElement().setProperty("innerHTML", "Подтвердите подписание выбранных файлов");
         Button approveButton = new Button("Подписать файлы", VaadinIcon.FILE_PROCESS.create());
-        approveButton.getElement().getStyle().set("color", "#5c995e");
+        approveButton.setWidth("100%");
+        approveButton.setHeight("60px");
+        approveButton.getElement().getStyle().set("background-color", "#F0F0F0"); // Зеленый цвет
+        approveButton.getElement().getStyle().set("color", "#2196F3"); // Цвет текста
         approveButton.addClickListener(event -> {
             if (comboBox.isEmpty()) {
                 Notification.show("Пожалуйста, выберете сертификат!", 1000, Notification.Position.MIDDLE);
@@ -353,37 +384,37 @@ public class MainView extends VerticalLayout {
 
                     PdfSignatureAppearance appearance;
                     InputStream inputStream;
-                    int existingSignCount;
+                    int sgnCnt;
                     String signFieldName;
                     try (FileOutputStream fos = new FileOutputStream(stampedPath)) {
                         PdfReader reader = new PdfReader(rootPath);
-                        PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0');
+                        PdfStamper stamper = PdfStamper.createSignature(reader, fos, '\0', null, true);
+
+                        //Определение количества подписей в документе
+                        sgnCnt = reader.getAcroFields().getSignatureNames().size() + 1;
+                        signFieldName = "signatureField" + sgnCnt;
 
                         //Определяем стиль шрифта с поддержкой кириллицы и содержимое подписи
                         BaseFont bf = BaseFont.createFont("./resources/fonts/FreeSans.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
                         Font font = new Font(bf, 12);
 
-                        float padding = 10;
                         //Определение координат для рамки
-                        //Получение ширины страницы
+                        float padding = 10;
                         float pageWidth = reader.getPageSize(1).getWidth();
-                        System.out.println("page width: " + pageWidth);
                         float width = pageWidth / 2 + padding * 2; //Ширина рамки
-                        float x = pageWidth - width - padding * 2; //Положение по X
+                        float x = (pageWidth - width - padding * 2) - padding; //Положение по X * Кол-во подписей
                         float height = font.getSize() * 4 * 2; //Высота рамки
-                        float y = height + padding * 2; //Положение по Y
+                        float y = (height + padding * 2) * sgnCnt; //Положение по Y * Кол - во подписей
 
                         appearance = stamper.getSignatureAppearance();
                         appearance.setReason(reason);
                         appearance.setLocation(location);
                         appearance.setContact(contact);
-                        existingSignCount = reader.getAcroFields().getSignatureNames().size();
-                        signFieldName = "signatureField" + (existingSignCount + 1);
                         appearance.setVisibleSignature(new Rectangle(x, y, x + width + padding * 2, y + height + padding * 2), 1, signFieldName);
                         appearance.setLayer2Font(font);
                         appearance.setLayer2Text(stampText.toString());
                         ExternalSignatureContainer external = new ExternalBlankSignatureContainer(PdfName.ADOBE_PPKLITE, PdfName.ADBE_PKCS7_DETACHED);
-                        MakeSignature.signExternalContainer(appearance, external, 8192);
+                        MakeSignature.signExternalContainer(appearance, external, 65536);
 
                         stamper.close();
                         reader.close();
@@ -393,9 +424,8 @@ public class MainView extends VerticalLayout {
                     }
 
                     //Подписываем документ подписью
-                    StringBuilder hexStringBuilder1 = new StringBuilder();
-                    StringBuilder hexStringBuilder2 = new StringBuilder();
-//                    HashAlgorithm hashAlgorithm; // ? ? ?
+                    String hexString1;
+                    String hexString2;
                     try {
                         MessageDigest messageDigest;
                         if (algorithm.contains("2012") && algorithm.contains("256")) {
@@ -420,19 +450,10 @@ public class MainView extends VerticalLayout {
 
                         byte[] hashBytes = messageDigest.digest();
 
-                        // Преобразование хеша в шестнадцатеричную строку
-                        for (byte b : hashBytes) {
-                            String hex = Integer.toHexString(0xff & b);
-                            if (hex.length() == 1) hexStringBuilder1.append('0');
-                            hexStringBuilder1.append(hex);
-                        }
-                        System.out.println("Хеш документа на подпись вариант 1: " + hexStringBuilder1.toString().toUpperCase());
-
-                        Formatter formatter = new Formatter(hexStringBuilder2);
-                        for (byte b : hashBytes) {
-                            formatter.format("%02x", b);
-                        }
-                        System.out.println("Хеш документа на подпись вариант 2: " + hexStringBuilder2.toString().toUpperCase());
+                        hexString1 = getHexString1(hashBytes);
+                        System.out.println("Хеш документа на подпись вариант 1: " + hexString1);
+                        hexString2 = getHexString2(hashBytes);
+                        System.out.println("Хеш документа на подпись вариант 2: " + hexString2);
 
                     } catch (NoSuchAlgorithmException e) {
                         throw new RuntimeException(e);
@@ -442,7 +463,7 @@ public class MainView extends VerticalLayout {
                         throw new RuntimeException(e);
                     }
 
-                    String hashString = hexStringBuilder1.toString().toUpperCase();
+                    String hashString = hexString1;
                     System.out.println("Хеш документа на подпись: " + hashString);
 
                     //На клиенте подписываем hash от сервера
@@ -452,8 +473,6 @@ public class MainView extends VerticalLayout {
                                 if (signedData instanceof JreJsonString) {
                                     base64Pdf = signedData.asString();
                                     base64Pdf = base64Pdf.replaceAll("[^A-Za-z0-9+/=]", "");
-
-                                    System.out.println("after sign size: " + base64Pdf.length());
                                     System.out.println("Результат подписи хеша файла:\n" + base64Pdf);
                                 }
 
@@ -464,7 +483,7 @@ public class MainView extends VerticalLayout {
                                     // Использование внешнего контейнера для подписи
                                     ExternalSignatureContainer external = new MyExternalSignatureContainer(decodedBytes);
                                     MakeSignature.signDeferred(reader, signFieldName, fos, external);
-                                    System.out.println("Файл подписан и сохранен: " + outputPath);
+                                    System.out.println(LocalDateTime.now() + " Файл подписан и сохранен: " + outputPath);
 
                                     fos.close();
                                     reader.close();
@@ -498,6 +517,29 @@ public class MainView extends VerticalLayout {
         //group layouts
         dialog.add(cancelLayout, approveLayout);
         dialog.open();
+    }
+
+    // Преобразование хеша в шестнадцатеричную строку способ первый
+    private String getHexString1(byte[] hashBytes) {
+        StringBuilder hexStringBuilder = new StringBuilder();
+        for (byte b : hashBytes) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) hexStringBuilder.append('0');
+            hexStringBuilder.append(hex);
+        }
+
+        return hexStringBuilder.toString().toUpperCase();
+    }
+
+    // Преобразование хеша в шестнадцатеричную строку способ второй
+    private String getHexString2(byte[] hashBytes) {
+        StringBuilder sb = new StringBuilder();
+        Formatter formatter = new Formatter(sb);
+        for (byte b : hashBytes) {
+            formatter.format("%02x", b);
+        }
+
+        return sb.toString().toUpperCase();
     }
 
     private void setAlgorithm(String algorithm) {
@@ -610,6 +652,14 @@ public class MainView extends VerticalLayout {
         grid.setSelectionMode(Grid.SelectionMode.MULTI);
 
         return grid;
+    }
+
+    @Override
+    public void beforeEnter(BeforeEnterEvent beforeEnterEvent) {
+        if (!Token.isUserLoggedIn()) {
+            // Переадресовываем на страницу логина
+            beforeEnterEvent.rerouteTo(LoginView.class);
+        }
     }
 }
 

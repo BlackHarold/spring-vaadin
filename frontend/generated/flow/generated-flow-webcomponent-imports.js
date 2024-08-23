@@ -1,3 +1,17 @@
+import { injectGlobalCss } from 'Frontend/generated/jar-resources/theme-util.js';
+
+import { css, unsafeCSS, registerStyles } from '@vaadin/vaadin-themable-mixin';
+import $cssFromFile_0 from 'Frontend/generated/jar-resources/styles/toolbar-button.css?inline';
+const $css_0 = typeof $cssFromFile_0  === 'string' ? unsafeCSS($cssFromFile_0) : $cssFromFile_0;
+registerStyles('vaadin-button', $css_0, {moduleId: 'flow_css_mod_0'});
+import $cssFromFile_1 from 'print-js/dist/print.css?inline';
+
+injectGlobalCss($cssFromFile_1.toString(), 'CSSImport end', document);
+import $cssFromFile_2 from 'Frontend/styles/styles.css?inline';
+
+injectGlobalCss($cssFromFile_2.toString(), 'CSSImport end', document);
+import '@vaadin-component-factory/vcf-pdf-viewer/vcf-pdf-viewer.js';
+import 'Frontend/generated/jar-resources/src/pdf-print.js';
 import '@vaadin/common-frontend/ConnectionIndicator.js';
 import '@vaadin/polymer-legacy-adapter/style-modules.js';
 import '@vaadin/accordion/theme/lumo/vaadin-accordion.js';
