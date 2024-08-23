@@ -7,6 +7,9 @@ registerStyles('vaadin-button', $css_0, {moduleId: 'flow_css_mod_0'});
 import $cssFromFile_1 from 'print-js/dist/print.css?inline';
 
 injectGlobalCss($cssFromFile_1.toString(), 'CSSImport end', document);
+import $cssFromFile_2 from 'Frontend/styles/styles.css?inline';
+
+injectGlobalCss($cssFromFile_2.toString(), 'CSSImport end', document);
 import '@vaadin-component-factory/vcf-pdf-viewer/vcf-pdf-viewer.js';
 import 'Frontend/generated/jar-resources/src/pdf-print.js';
 import '@vaadin/common-frontend/ConnectionIndicator.js';

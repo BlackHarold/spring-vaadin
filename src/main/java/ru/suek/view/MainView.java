@@ -11,6 +11,7 @@ import com.itextpdf.text.pdf.security.MakeSignature;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dependency.JavaScript;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -157,14 +158,18 @@ public class MainView extends VerticalLayout implements BeforeEnterObserver {
             Button signButton = createSignButton(); //create button & set disable
 
             // Переход на другую страницу
-            Button navigateButton = new Button("Перейти в на страницу просмотра", event -> {
-                getUI().ifPresent(ui -> ui.navigate(PdfPreview.class));
-            });
+            Button navigateButton = new Button(
+                    "Перейти в на страницу просмотра",
+                    event -> getUI().ifPresent(ui -> ui.navigate(PdfPreview.class))
+            );
 
-            Button logoff = new Button("Выйти", event -> {
+            Button logoffButton = new Button("", VaadinIcon.SIGN_OUT.create());
+            logoffButton.addClickListener(event -> {
                 Token.setValue(null);
                 getUI().ifPresent(ui -> ui.navigate(LoginView.class));
             });
+            Icon icon = (Icon) logoffButton.getIcon();
+            icon.setColor("red");
 
             Div div = new Div();
             this.getElement().executeJs("return oAbout()")
@@ -185,9 +190,11 @@ public class MainView extends VerticalLayout implements BeforeEnterObserver {
                 div.getStyle().set("background-color", "rgba(255, 0, 0, 0.5)");
             }
 
-            HorizontalLayout header = new HorizontalLayout(div);
+            HorizontalLayout header = new HorizontalLayout(div, logoffButton);
+            header.setWidth("100%");
+            header.setJustifyContentMode(JustifyContentMode.BETWEEN);
             HorizontalLayout toolbar = new HorizontalLayout(signButton);
-            HorizontalLayout footer = new HorizontalLayout(navigateButton, logoff);
+            HorizontalLayout footer = new HorizontalLayout(navigateButton);
             grid = createGrid(dtoFiles);
             grid.addSelectionListener(event -> {
                 signButton.setEnabled(event.getAllSelectedItems().size() > 0);
