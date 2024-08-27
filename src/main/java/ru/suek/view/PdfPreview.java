@@ -51,7 +51,7 @@ public class PdfPreview extends VerticalLayout {
         layout.add(grid, pdfViewer);
 
         // Переход на другую страницу
-        Button navigateButton = new Button("Вернуться ня страницу подписания", event -> {
+        Button navigateButton = new Button("Вернуться на страницу подписания", event -> {
             getUI().ifPresent(ui -> ui.navigate(MainView.class));
         });
 

@@ -1,6 +1,5 @@
 package ru.suek.view;
 
-import com.itextpdf.text.BaseColor;
 import com.itextpdf.text.DocumentException;
 import com.itextpdf.text.Font;
 import com.itextpdf.text.Rectangle;
@@ -11,7 +10,6 @@ import com.itextpdf.text.pdf.security.MakeSignature;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dependency.JavaScript;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -31,7 +29,6 @@ import com.vaadin.flow.data.selection.MultiSelect;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.server.VaadinServletRequest;
 import elemental.json.JsonValue;
 import elemental.json.impl.JreJsonArray;
 import elemental.json.impl.JreJsonObject;
@@ -105,23 +102,18 @@ public class MainView extends VerticalLayout implements BeforeEnterObserver {
                     .then(oInfo -> {
                         //Определяем алгоритм
                         algorithm = getAlgorithm(oInfo);
+                        System.out.println("got algorithm: " + algorithm);
                         reason = "Документ подписан электронной подписью";
                         location = getLocation(oInfo);
+                        System.out.println("got location: " + location);
                         contact = getContact(oInfo);
-                        System.out.println("got algorithm: " + algorithm);
-                        stampText = getStampTextBuilder(oInfo);
-                    });
+                        System.out.println("got contact: " + contact);
 
-            //TODO Error: WARN if cert is not found!
-//                Notification notification = new Notification("Сертификат с отпечатком "
-//                        + certId
-//                        + " в хранилище не обнаружен, файл не будет подписан корректно. Выберете другой сертификат или обратитесь за помощью");
-//                notification.addThemeVariants(NotificationVariant.LUMO_ERROR); // Установите тему
-//                notification.getElement().getStyle().set("color", "red"); // Задайте цвет шрифта
-//                notification.setDuration(5000); // Длительность отображения
-//                notification.setPosition(Notification.Position.MIDDLE);
-//
-//                notification.open();
+                        stampText = getStampTextBuilder(oInfo);
+                        if (stampText == null) {
+                            throwErrorNotify("Сертификат с отпечатком " + certId + " не смог предоставить необходимую информацию для наполнения штампа");
+                        }
+                    });
         });
 
         return comboBox;
@@ -159,7 +151,7 @@ public class MainView extends VerticalLayout implements BeforeEnterObserver {
 
             // Переход на другую страницу
             Button navigateButton = new Button(
-                    "Перейти в на страницу просмотра",
+                    "Перейти на страницу просмотра",
                     event -> getUI().ifPresent(ui -> ui.navigate(PdfPreview.class))
             );
 
@@ -400,7 +392,9 @@ public class MainView extends VerticalLayout implements BeforeEnterObserver {
 
                         //Определение координат для рамки
                         float padding = 10;
+                        float pageHeight = reader.getPageSize(1).getHeight();
                         float pageWidth = reader.getPageSize(1).getWidth();
+                        System.out.println("pageHeight " + pageHeight + " pageWidth " + pageWidth);
                         float width = pageWidth / 2 + padding * 2; //Ширина рамки
                         float x = (pageWidth - width - padding * 2) - padding; //Положение по X * Кол-во подписей
                         float height = font.getSize() * 4 * 2; //Высота рамки
@@ -408,8 +402,8 @@ public class MainView extends VerticalLayout implements BeforeEnterObserver {
 
                         appearance = stamper.getSignatureAppearance();
                         appearance.setReason(reason);
-                        appearance.setLocation(location);
-                        appearance.setContact(contact);
+//                        appearance.setLocation(location);
+//                        appearance.setContact(contact);
                         appearance.setVisibleSignature(new Rectangle(x, y, x + width + padding * 2, y + height + padding * 2), 1, signFieldName);
                         appearance.setLayer2Font(font);
                         appearance.setLayer2Text(stampText.toString());
@@ -542,11 +536,6 @@ public class MainView extends VerticalLayout implements BeforeEnterObserver {
         return sb.toString().toUpperCase();
     }
 
-    private void setAlgorithm(String algorithm) {
-        this.algorithm = algorithm;
-        System.out.println("Алгоритм установлен: " + algorithm);
-    }
-
     private String getAlgorithm(JsonValue oInfo) {
         JreJsonObject jsonObject = (JreJsonObject) oInfo;
         JSONObject mainObject = new JSONObject(jsonObject);
@@ -560,7 +549,12 @@ public class MainView extends VerticalLayout implements BeforeEnterObserver {
         JSONObject object = mainObject.getJSONObject("object");
         JSONObject subject = object.getJSONObject("Subject");
         System.out.println("subject: " + subject);
-        return subject.getString("L");
+        if (subject.keySet().contains("L")) {
+            return subject.getString("L");
+        }
+         else {
+            return "";
+        }
     }
 
     private String getContact(JsonValue oInfo) {
@@ -569,74 +563,10 @@ public class MainView extends VerticalLayout implements BeforeEnterObserver {
         JSONObject object = mainObject.getJSONObject("object");
         JSONObject subject = object.getJSONObject("Subject");
         System.out.println("subject: " + subject);
-        return subject.getString("E");
-    }
-
-    private boolean isPdfHeader(String header) {
-        // Проверка, начинается ли строка с "JVBERi0xLjQKJeLjz9MKMyAwIG9iago8"
-        return header.startsWith("JVBERi0xLjQKJeLjz9MKMyAwIG9iago8");
-    }
-
-    private static void printInfo(PrivateKey privateKey,
-                                  X509Certificate certificate) {
-
-        System.out.println("Private key: " + privateKey);
-        System.out.println("Certificate:\n   Sn - " +
-                certificate.getSerialNumber().toString(16) +
-                "\n   Subject - " + certificate.getSubjectDN() +
-                "\n   Issuer - " + certificate.getIssuerDN());
-    }
-
-    private void checkProviders() {
-        try {
-            MessageDigest digest = MessageDigest.getInstance(JCP.GOST_DIGEST_2012_512_NAME, JCP.PROVIDER_NAME);
-            System.out.println("get algo: " + digest.getAlgorithm());
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        } catch (NoSuchProviderException e) {
-            throw new RuntimeException(e);
-        }
-
-        for (Provider provider : Security.getProviders()) {
-            System.out.println("provider name: " + provider.getName());
-            for (Provider.Service service : provider.getServices()) {
-                if ("MessageDigest".equals(service.getType())) {
-                    System.out.println("algorithm:  " + service.getAlgorithm());
-                }
-            }
-        }
-    }
-
-    private void loadKeyStore() {
-        System.setProperty("file.encoding", "UTF-8");
-
-        KeyStore ks;
-        try {
-            ks = KeyStore.getInstance("HDIMAGE", "JCSP");
-            ks.load(null, null);
-            Enumeration<String> aliases = ks.aliases();
-            while (aliases.hasMoreElements()) {
-                Certificate cert = ks.getCertificate(aliases.nextElement());
-                if (cert == null) {
-                    continue;
-                }
-                if (!(cert instanceof X509Certificate)) {
-                    continue;
-                }
-                X509Certificate curCert = (X509Certificate) cert;
-                System.out.println("curCert: " + curCert);
-            }
-
-        } catch (KeyStoreException e) {
-            throw new RuntimeException(e);
-        } catch (NoSuchProviderException e) {
-            throw new RuntimeException(e);
-        } catch (CertificateException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
+        if (subject.keySet().contains("E")) {
+            return subject.getString("E");
+        } else {
+            return "";
         }
     }
 
@@ -652,6 +582,21 @@ public class MainView extends VerticalLayout implements BeforeEnterObserver {
         grid.setSelectionMode(Grid.SelectionMode.MULTI);
 
         return grid;
+    }
+
+
+    private void throwErrorNotify(String s) {
+//        "Сертификат с отпечатком "
+//                + certId
+//                + " в хранилище не обнаружен, файл не будет подписан корректно. Выберете другой сертификат или обратитесь за помощью"
+
+        Notification notification = new Notification(s);
+        notification.addThemeVariants(NotificationVariant.LUMO_ERROR); // Устанавливаем тему
+        notification.getElement().getStyle().set("color", "red");      // Задаем цвет шрифта
+        notification.setDuration(5000);                                // Длительность отображения (мс)
+        notification.setPosition(Notification.Position.MIDDLE);        // Уточняем позицию отображения
+
+        notification.open();
     }
 
     @Override
