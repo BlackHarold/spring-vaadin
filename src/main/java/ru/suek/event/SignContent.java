@@ -70,8 +70,8 @@ public class SignContent {
         JSONObject mainObject = new JSONObject(jsonObject);
         System.out.println("main object: " + mainObject);
         JSONObject object = mainObject.getJSONObject("object");
-        JSONObject issuer = object.optJSONObject("Issuer");
-        System.out.println("issuer: " + issuer);
+//        JSONObject issuer = object.optJSONObject("Issuer");
+//        System.out.println("issuer: " + issuer);
         JSONObject subject = object.optJSONObject("Subject");
         System.out.println("subject: " + subject);
         String thumbprint = object.getString("Thumbprint");
