@@ -7,6 +7,7 @@ import com.itextpdf.text.Phrase;
 import com.itextpdf.text.pdf.*;
 import elemental.json.JsonValue;
 import elemental.json.impl.JreJsonObject;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.json.JSONObject;
 
 import java.io.FileOutputStream;
@@ -63,44 +64,50 @@ public class SignContent {
         }
     }
 
-    public static StringBuilder getStampTextBuilder(JsonValue oInfo){
-        StringBuilder stampText = new StringBuilder();
-        JreJsonObject jsonObject = (JreJsonObject) oInfo;
-        System.out.println("oInfo: " + oInfo);
-        JSONObject mainObject = new JSONObject(jsonObject);
-        System.out.println("main object: " + mainObject);
-        JSONObject object = mainObject.getJSONObject("object");
+    public static StringBuilder getStampTextBuilder(JsonValue oInfo) {
+        try {
+            JreJsonObject jsonObject = (JreJsonObject) oInfo;
+            System.out.println("oInfo: " + oInfo);
+            JSONObject mainObject = new JSONObject(jsonObject);
+            System.out.println("main object: " + mainObject);
+            JSONObject object = mainObject.getJSONObject("object");
 //        JSONObject issuer = object.optJSONObject("Issuer");
 //        System.out.println("issuer: " + issuer);
-        JSONObject subject = object.optJSONObject("Subject");
-        System.out.println("subject: " + subject);
-        String thumbprint = object.getString("Thumbprint");
-        System.out.println("thumbprint: " + thumbprint);
-        String algorithm = object.getString("Algorithm");
-        System.out.println("algorithm: " + algorithm);
-        String validFromDate = object.getString("ValidFromDate");
-        System.out.println("validFromDate: " + validFromDate);
-        String validToDate = object.getString("ValidToDate");
-        System.out.println("validToDate: " + validToDate);
+            JSONObject subject = object.optJSONObject("Subject");
+            System.out.println("subject: " + subject);
+            String thumbprint = object.getString("Thumbprint");
+            System.out.println("thumbprint: " + thumbprint);
+            String algorithm = object.getString("Algorithm");
+            System.out.println("algorithm: " + algorithm);
+            String validFromDate = object.getString("ValidFromDate");
+            System.out.println("validFromDate: " + validFromDate);
+            String validToDate = object.getString("ValidToDate");
+            System.out.println("validToDate: " + validToDate);
 
-        //Извлечение даты
-        LocalDate fromDate = LocalDate.parse(validFromDate.substring(0, 10));
-        LocalDate toDate = LocalDate.parse(validToDate.substring(0, 10));
+            //Извлечение даты
+            LocalDate fromDate = LocalDate.parse(validFromDate.substring(0, 10));
+            LocalDate toDate = LocalDate.parse(validToDate.substring(0, 10));
 
-        //Форматирование даты в нужном формате
-        String formattedFromDate = fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-        String formattedToDate = toDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            //Форматирование даты в нужном формате
+            String formattedFromDate = fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            String formattedToDate = toDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
-        //Рисование рамки штампа (ГОСТ Р 7.0.97-2016)
-        stampText
-                .append("Документ подписан электронной подписью").append("\n")
-                .append("Сертификат: ").append(thumbprint).append("\n")
-                .append("Владелец: ").append(subject.get("CN")).append("\n")
-                .append("Действителен: ")
-                .append("c ").append(formattedFromDate)
-                .append(" по ").append(formattedToDate).append("\n");
-        System.out.println("stamp text: \n\t" + stampText);
+            //Рисование рамки штампа (ГОСТ Р 7.0.97-2016)
+            StringBuilder stampText = new StringBuilder();
+            stampText
+                    .append("Документ подписан электронной подписью").append("\n")
+                    .append("Сертификат: ").append(thumbprint).append("\n")
+                    .append("Владелец: ").append(subject.get("CN")).append("\n")
+                    .append("Действителен: ")
+                    .append("c ").append(formattedFromDate)
+                    .append(" по ").append(formattedToDate).append("\n");
+            System.out.println("stamp text: \n\t" + stampText);
 
-        return stampText;
+            return stampText;
+        } catch (Exception e) {
+            System.out.println("getStampTextBuilder exception: " + ExceptionUtils.getStackTrace(e));
+        }
+
+        return null;
     }
 }
