@@ -551,8 +551,7 @@ public class MainView extends VerticalLayout implements BeforeEnterObserver {
         System.out.println("subject: " + subject);
         if (subject.keySet().contains("L")) {
             return subject.getString("L");
-        }
-         else {
+        } else {
             return "";
         }
     }

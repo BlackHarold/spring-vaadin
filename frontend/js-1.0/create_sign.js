@@ -39,6 +39,7 @@ window.signHash = async function (hashBase64OrHex, thumbprint) {
             return;
         }
 
+        console.log("hashBase64OrHex", hashBase64OrHex);
         await oHashObject.SetHashValue(hashBase64OrHex);
 
         //Получаю подписчика

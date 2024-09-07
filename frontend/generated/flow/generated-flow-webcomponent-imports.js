@@ -94,6 +94,7 @@ import '@vaadin/vaadin-lumo-styles/sizing.js';
 import '@vaadin/vaadin-lumo-styles/spacing.js';
 import '@vaadin/vaadin-lumo-styles/style.js';
 import '@vaadin/vaadin-lumo-styles/vaadin-iconset.js';
+import 'Frontend/js-1.0/coordinates.js';
 import 'Frontend/js-1.0/cadesplugin_api.js';
 import 'Frontend/js-1.0/crypto_plugin.js';
 import 'Frontend/js-1.0/create_sign.js';
